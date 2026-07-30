@@ -54,7 +54,7 @@ const project: Project = {
   chapters: [],
   foreshadows: [],
   viewpoint: { mode: "omniscient", narratorPersonaId: null },
-  genre: { preset: "", custom: "", notes: "" },
+  genre: { presets: [], custom: "", notes: "" },
 };
 
 const entries = buildExportEntries(project);

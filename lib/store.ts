@@ -170,15 +170,17 @@ export type World = {
   slang: string; // 속어 & 표현
 };
 
-// 스토리 전체의 장르. preset이 "기타"일 때만 custom(자유 입력)을 실제 장르명으로 쓴다.
+// 스토리 전체의 장르 — 여러 개를 동시에 고를 수 있다(예: "무협"+"로맨스"). presets에 "기타"가 포함돼 있으면
+// custom(자유 입력)을 그 자리에 대신 넣어서 라벨을 만든다.
 // notes는 장르 자체가 아니라 그 장르 안에서의 톤·참고작품·지키거나 피하고 싶은 관습 등 부가 설정
-export type Genre = { preset: string; custom: string; notes: string };
+export type Genre = { presets: string[]; custom: string; notes: string };
 
-export const DEFAULT_GENRE: Genre = { preset: "", custom: "", notes: "" };
+export const DEFAULT_GENRE: Genre = { presets: [], custom: "", notes: "" };
 
 export function genreLabel(genre: Genre): string {
-  if (genre.preset === "기타") return genre.custom.trim() || "기타";
-  return genre.preset;
+  return genre.presets
+    .map((preset) => (preset === "기타" ? genre.custom.trim() || "기타" : preset))
+    .join(" · ");
 }
 
 // 이야기를 막/장 등으로 정리하는 목차 트리. 서술 분기 트리(StoryNode)와는 별개 — 작가가 직접 구성하는 구조.
@@ -339,6 +341,12 @@ export function loadProjects(): Project[] {
       p.foreshadows ??= [];
       p.viewpoint ??= { ...DEFAULT_VIEWPOINT };
       p.genre ??= { ...DEFAULT_GENRE };
+      // 구버전 장르(하나만 고르는 preset: string) -> 여러 개를 고르는 presets: string[]로 이전
+      const legacyGenre = p.genre as Genre & { preset?: string };
+      if (legacyGenre.presets === undefined) {
+        legacyGenre.presets = legacyGenre.preset ? [legacyGenre.preset] : [];
+        delete legacyGenre.preset;
+      }
       // 구버전 세계관(setting/rules/taboos 3필드)을 5개 대분류 구조로 확장
       const legacyWorld = p.world as World & { setting?: string; rules?: string };
       legacyWorld.overview ??= legacyWorld.setting ?? "";

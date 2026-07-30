@@ -224,7 +224,7 @@ const CHECK_SCHEMA = {
 export async function POST(req: Request) {
   const {
     mode,
-    genre = { preset: "", custom: "", notes: "" },
+    genre = { presets: [], custom: "", notes: "" },
     world,
     personas,
     groups,

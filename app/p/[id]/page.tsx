@@ -932,36 +932,76 @@ const GENRE_OPTIONS = [
   "라이트노벨풍",
 ] as const;
 
+// 카드 배경/테두리/글자색(기본)과 선택 시 색을 완전한 클래스 문자열로 나열 — Tailwind JIT가 정적 문자열만 스캔하므로
+// RelationshipGraph.tsx의 PALETTE와 같은 이유로 동적 템플릿(`border-${color}-200` 등)으로 바꾸면 스타일이 안 먹힘
+const GENRE_COLORS = [
+  { idle: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/40", selected: "border-emerald-500 bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-200 dark:ring-emerald-900" },
+  { idle: "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-300 dark:hover:bg-sky-900/40", selected: "border-sky-500 bg-sky-500 text-white shadow-sm ring-2 ring-sky-200 dark:ring-sky-900" },
+  { idle: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-900/40", selected: "border-amber-500 bg-amber-500 text-white shadow-sm ring-2 ring-amber-200 dark:ring-amber-900" },
+  { idle: "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40", selected: "border-rose-500 bg-rose-500 text-white shadow-sm ring-2 ring-rose-200 dark:ring-rose-900" },
+  { idle: "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300 dark:hover:bg-indigo-900/40", selected: "border-indigo-500 bg-indigo-500 text-white shadow-sm ring-2 ring-indigo-200 dark:ring-indigo-900" },
+  { idle: "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/30 dark:text-teal-300 dark:hover:bg-teal-900/40", selected: "border-teal-500 bg-teal-500 text-white shadow-sm ring-2 ring-teal-200 dark:ring-teal-900" },
+  { idle: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100 dark:border-fuchsia-800 dark:bg-fuchsia-950/30 dark:text-fuchsia-300 dark:hover:bg-fuchsia-900/40", selected: "border-fuchsia-500 bg-fuchsia-500 text-white shadow-sm ring-2 ring-fuchsia-200 dark:ring-fuchsia-900" },
+  { idle: "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-300 dark:hover:bg-orange-900/40", selected: "border-orange-500 bg-orange-500 text-white shadow-sm ring-2 ring-orange-200 dark:ring-orange-900" },
+  { idle: "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-300 dark:hover:bg-cyan-900/40", selected: "border-cyan-500 bg-cyan-500 text-white shadow-sm ring-2 ring-cyan-200 dark:ring-cyan-900" },
+  { idle: "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-900/40", selected: "border-violet-500 bg-violet-500 text-white shadow-sm ring-2 ring-violet-200 dark:ring-violet-900" },
+] as const;
+
+const GENRE_CARD_BASE = "rounded-lg border px-3 py-2.5 text-left text-sm font-medium transition-colors";
+const GENRE_CARD_NEUTRAL_SELECTED =
+  "border-gray-800 bg-gray-800 text-white shadow-sm dark:border-gray-200 dark:bg-gray-200 dark:text-gray-900";
+const GENRE_CARD_NEUTRAL_IDLE =
+  "border-gray-200 bg-white text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800";
+
 function GenreTab({ project, update }: TabProps) {
   const genre = project.genre;
-  const setPreset = (preset: string) =>
+  const toggle = (preset: string) =>
     update((p) => {
-      p.genre.preset = preset;
-      if (preset !== "기타") p.genre.custom = "";
+      const i = p.genre.presets.indexOf(preset);
+      if (i === -1) p.genre.presets.push(preset);
+      else p.genre.presets.splice(i, 1);
+      if (!p.genre.presets.includes("기타")) p.genre.custom = "";
     });
+  const clear = () => update((p) => void ((p.genre.presets = []), (p.genre.custom = "")));
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        이 스토리의 장르를 설정하면 인터뷰·이야기 쓰기에서 그 장르의 문체·전개 관습을 참고합니다. 안 골라도 진행에는 지장이
-        없습니다.
+        이 스토리의 장르를 설정하면(여러 개 선택 가능) 인터뷰·이야기 쓰기에서 그 장르들의 문체·전개 관습을 참고합니다. 안
+        골라도 진행에는 지장이 없습니다.
       </p>
       <div>
-        <p className="mb-1 text-sm font-semibold text-gray-600 dark:text-gray-300">장르</p>
-        <select
-          value={genre.preset}
-          onChange={(e) => setPreset(e.target.value)}
-          className="w-full rounded border px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900"
-        >
-          <option value="">선택 안 함</option>
-          {GENRE_OPTIONS.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-          <option value="기타">기타 (직접 입력)</option>
-        </select>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">장르 (복수 선택 가능)</p>
+          {genre.presets.length > 0 && (
+            <button type="button" onClick={clear} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+              선택 해제
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          {GENRE_OPTIONS.map((g, i) => {
+            const c = GENRE_COLORS[i % GENRE_COLORS.length];
+            return (
+              <button
+                key={g}
+                type="button"
+                onClick={() => toggle(g)}
+                className={`${GENRE_CARD_BASE} ${genre.presets.includes(g) ? c.selected : c.idle}`}
+              >
+                {g}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => toggle("기타")}
+            className={`${GENRE_CARD_BASE} border-dashed ${genre.presets.includes("기타") ? GENRE_CARD_NEUTRAL_SELECTED : GENRE_CARD_NEUTRAL_IDLE}`}
+          >
+            기타 (직접 입력)
+          </button>
+        </div>
       </div>
-      {genre.preset === "기타" && (
+      {genre.presets.includes("기타") && (
         <div>
           <p className="mb-1 text-sm font-semibold text-gray-600 dark:text-gray-300">장르 직접 입력</p>
           <input

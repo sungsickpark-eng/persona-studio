@@ -169,7 +169,7 @@ const SCHEMA = {
 
 export async function POST(req: Request) {
   const {
-    genre = { preset: "", custom: "", notes: "" },
+    genre = { presets: [], custom: "", notes: "" },
     world,
     persona,
     groups = [],

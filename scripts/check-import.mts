@@ -49,7 +49,7 @@ const project: Project = {
     { id: "fs1", number: 1, plantNodeId: "s1", plantStart: 0, plantEnd: 3, plantText: "테스", resolveNodeId: "s2", resolveStart: 1, resolveEnd: 3, resolveText: "스트" },
   ],
   viewpoint: { mode: "omniscient", narratorPersonaId: null },
-  genre: { preset: "", custom: "", notes: "" },
+  genre: { presets: [], custom: "", notes: "" },
 };
 
 // --- buildExportEntries 결과를 File System Access API 핸들처럼 흉내낸다 ---

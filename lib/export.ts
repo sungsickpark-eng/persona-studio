@@ -1,8 +1,8 @@
 // Obsidian 볼트로 내보내기: 캐릭터/집단을 노트별 개별 파일로 만들고 서로 [[위키링크]]로 연결.
 // 압축 없이 사용자가 고른 폴더 안에 프로젝트명 폴더를 만들어 파일을 직접 쓴다 (File System Access API, Chrome/Edge 전용).
-import { groupTreeOrder, storyActivePath, type Project, type StoryNode } from "./store";
+import { chapterTreeOrder, groupTreeOrder, storyActivePath, type Project, type StoryNode } from "./store";
 
-const safe = (name: string) => name.replace(/[\\/:*?"<>|#^[\]]/g, " ").trim() || "무제";
+export const safe = (name: string) => name.replace(/[\\/:*?"<>|#^[\]]/g, " ").trim() || "무제";
 
 // 텍스트 안에 등장하는 다른 캐릭터/집단 이름을 [[이름]] 링크로 치환
 function wikiLink(text: string, names: string[]): string {
@@ -137,17 +137,85 @@ export function buildExportEntries(p: Project): ExportEntry[] {
     entries.push({ dirs: [root], name: "이야기.md", content: buildStoryMarkdown(p, activeStory) });
   }
 
+  // 관계 지수·이미지 자르기 위치·목차·시점·떡밥 — .md 노트로 사람이 읽기보다는 이 앱이 다시 불러올 때 쓰는
+  // 구조화 데이터라 JSON 하나로 따로 둔다(수동 편집 비추천). 이름 기반 참조라 나중에 다시 불러올 때 새로 생성되는
+  // id와 무관하게 맞물린다. 떡밥은 plant/resolve 지점이 "이야기" 활성 경로 밖(다른 분기)에 있으면 복원 불가능해 제외.
+  entries.push({ dirs: [root], name: "app-data.json", content: JSON.stringify(buildAppData(p, personas, groups, activeStory), null, 2) });
+
   return entries;
 }
 
-// "이야기 쓰기" 로그(트리에서 활성 경로만)를 마크다운 텍스트로 변환. direction은 소제목, story는 본문 문단으로 나열
+function buildAppData(p: Project, personas: Project["personas"], groups: Project["groups"], activeStory: StoryNode[]) {
+  const personaName = new Map(personas.map((x) => [x.id, x.name]));
+  const groupName = new Map(groups.map((x) => [x.id, x.name]));
+
+  const personaRelations = p.personaRelations
+    .filter((r) => personaName.has(r.aId) && personaName.has(r.bId))
+    .map((r) => ({ aName: personaName.get(r.aId), bName: personaName.get(r.bId), score: r.score, aware: r.aware, mutual: r.mutual }));
+
+  const groupRelations = p.groupRelations
+    .filter((r) => groupName.has(r.aId) && groupName.has(r.bId))
+    .map((r) => ({ aName: groupName.get(r.aId), bName: groupName.get(r.bId), score: r.score, aware: r.aware, mutual: r.mutual }));
+
+  const personaGroupRelations = p.personaGroupRelations
+    .filter((r) => personaName.has(r.personaId) && groupName.has(r.groupId))
+    .map((r) => ({
+      personaName: personaName.get(r.personaId),
+      groupName: groupName.get(r.groupId),
+      score: r.score,
+      personaAware: r.personaAware,
+      groupAware: r.groupAware,
+    }));
+
+  const chapters = chapterTreeOrder(p.chapters).map(({ chapter, depth }) => ({
+    depth,
+    title: chapter.title,
+    viewpointMode: chapter.viewpoint?.mode ?? null,
+    viewpointNarratorName: chapter.viewpoint?.narratorPersonaId ? (personaName.get(chapter.viewpoint.narratorPersonaId) ?? null) : null,
+  }));
+
+  const personaImages = personas
+    .filter((x) => x.image && (x.imagePosition || x.imageWidth))
+    .map((x) => ({ name: x.name, width: x.imageWidth, height: x.imageHeight, x: x.imagePosition?.x, y: x.imagePosition?.y }));
+
+  const nodeIndex = new Map(activeStory.map((n, i) => [n.id, i]));
+  const foreshadows = p.foreshadows
+    .filter((f) => nodeIndex.has(f.plantNodeId))
+    .map((f) => {
+      const resolveIndex = f.resolveNodeId ? nodeIndex.get(f.resolveNodeId) : undefined;
+      return {
+        number: f.number,
+        plantIndex: nodeIndex.get(f.plantNodeId),
+        plantStart: f.plantStart,
+        plantEnd: f.plantEnd,
+        plantText: f.plantText,
+        resolveIndex: resolveIndex ?? null,
+        resolveStart: resolveIndex !== undefined ? f.resolveStart : undefined,
+        resolveEnd: resolveIndex !== undefined ? f.resolveEnd : undefined,
+        resolveText: resolveIndex !== undefined ? f.resolveText : undefined,
+      };
+    });
+
+  return {
+    viewpoint: {
+      mode: p.viewpoint.mode,
+      narratorName: p.viewpoint.narratorPersonaId ? (personaName.get(p.viewpoint.narratorPersonaId) ?? null) : null,
+    },
+    personaRelations,
+    groupRelations,
+    personaGroupRelations,
+    chapters,
+    personaImages,
+    foreshadows,
+  };
+}
+
+// "이야기 쓰기" 로그(트리에서 활성 경로만)를 마크다운 텍스트로 변환. direction은 소제목, story는 본문 문단으로 나열.
+// 노드 사이를 "---"로 명확히 구분(문단 내부의 빈 줄과 구별되게)해서, 되불러올 때 노드 개수·순서가 정확히
+// 일치하게 만든다 — 떡밥이 노드 인덱스로 지점을 가리키므로 이 경계가 흔들리면 떡밥 복원이 어긋난다.
 export function buildStoryMarkdown(p: Project, path: StoryNode[]): string {
-  const lines: string[] = [`# ${p.name} — 이야기`, ""];
-  for (const entry of path) {
-    if (entry.role === "direction") lines.push(`## ▶ ${entry.text}`, "");
-    else lines.push(entry.text, "");
-  }
-  return lines.join("\n");
+  const blocks = path.map((entry) => (entry.role === "direction" ? `## ▶ ${entry.text}` : entry.text));
+  return [`# ${p.name} — 이야기`, "", blocks.join("\n\n---\n\n")].join("\n");
 }
 
 // File System Access API의 필요한 부분만 최소로 선언 — TS 표준 DOM 타입에 없어도 동작하도록

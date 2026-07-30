@@ -593,6 +593,28 @@ function SettingsPanel({
   const set = <K extends keyof LLMSettings>(key: K, value: LLMSettings[K]) => setDraft((d) => ({ ...d, [key]: value }));
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
+  const [geminiModels, setGeminiModels] = useState<string[]>([]);
+  const [geminiModelsLoading, setGeminiModelsLoading] = useState(false);
+  const [geminiModelsError, setGeminiModelsError] = useState("");
+  const loadGeminiModels = async () => {
+    setGeminiModelsLoading(true);
+    setGeminiModelsError("");
+    try {
+      const res = await fetch("/api/gemini-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: draft.geminiKey, url: draft.geminiUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `요청 실패 (${res.status})`);
+      setGeminiModels(data.models ?? []);
+    } catch (e) {
+      setGeminiModelsError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGeminiModelsLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" onClick={onClose}>
       <div
@@ -724,12 +746,35 @@ function SettingsPanel({
               </div>
               <div>
                 <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">모델</p>
-                <input
-                  className="w-full rounded border px-2 py-1"
-                  placeholder="gemini-2.5-flash"
-                  value={draft.geminiModel}
-                  onChange={(e) => set("geminiModel", e.target.value)}
-                />
+                <div className="flex gap-1.5">
+                  <input
+                    className="w-full rounded border px-2 py-1"
+                    placeholder="gemini-3.5-flash"
+                    value={draft.geminiModel}
+                    onChange={(e) => set("geminiModel", e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={!draft.geminiKey.trim() || geminiModelsLoading}
+                    onClick={loadGeminiModels}
+                    className="shrink-0 rounded border px-2 py-1 text-xs disabled:opacity-40"
+                  >
+                    {geminiModelsLoading ? "불러오는 중…" : "목록 불러오기"}
+                  </button>
+                </div>
+                {geminiModelsError && <p className="mt-1 text-xs text-red-500">{geminiModelsError}</p>}
+                {geminiModels.length > 0 && (
+                  <select
+                    className="mt-1 w-full rounded border px-2 py-1 text-xs"
+                    value=""
+                    onChange={(e) => e.target.value && set("geminiModel", e.target.value)}
+                  >
+                    <option value="">이 키로 쓸 수 있는 모델 {geminiModels.length}개 — 고르면 위 칸에 채워짐</option>
+                    {geminiModels.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
           )}

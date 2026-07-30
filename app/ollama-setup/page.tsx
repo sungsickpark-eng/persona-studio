@@ -107,11 +107,50 @@ export default function OllamaSetupPage() {
       </p>
       <Block>{`launchctl setenv OLLAMA_ORIGINS "*"`}</Block>
 
-      <h2 className="mt-6 text-lg font-semibold">Windows·Linux를 쓴다면</h2>
+      <h2 className="mt-6 text-lg font-semibold">Windows에서 설정하는 방법</h2>
+      <p className="mt-1 text-gray-600 dark:text-gray-300">방법은 두 가지입니다. 둘 중 하나만 하면 됩니다.</p>
+
+      <p className="mt-3 font-medium text-gray-700 dark:text-gray-200">방법 A — 설정 화면에서 (한 번만 하면 계속 유지됨, 추천)</p>
+      <ol className="mt-1 list-decimal space-y-2 pl-5 text-gray-600 dark:text-gray-300">
+        <li>
+          <b>Windows 키</b>를 누르고 <Code>환경 변수</Code>라고 입력한 뒤, 검색 결과에서 <b>&quot;계정의 환경 변수 편집&quot;</b>
+          (또는 &quot;시스템 환경 변수 편집&quot;)을 클릭합니다.
+        </li>
+        <li>
+          <b>환경 변수(N)...</b> 버튼을 클릭합니다.
+        </li>
+        <li>
+          위쪽 <b>&quot;사용자 변수&quot;</b> 목록 아래의 <b>새로 만들기(N)...</b>를 클릭합니다.
+        </li>
+        <li>
+          변수 이름에 <Code>OLLAMA_ORIGINS</Code>, 변수 값에 <Code>{site}</Code>를 입력하고 <b>확인</b>을 누릅니다. (창을 두 번 더
+          &quot;확인&quot;으로 닫아 저장을 마칩니다.)
+        </li>
+        <li>
+          작업 표시줄 오른쪽 아래 트레이에서 Ollama 아이콘을 우클릭해 <b>Quit Ollama</b>(또는 종료)를 선택합니다. 아이콘이 안
+          보이면 <b>작업 관리자(Ctrl+Shift+Esc)</b>에서 &quot;Ollama&quot; 프로세스를 찾아 종료합니다.
+        </li>
+        <li>시작 메뉴에서 Ollama를 다시 실행합니다. 이후로는 컴퓨터를 재시작해도 이 설정이 계속 유지됩니다.</li>
+      </ol>
+
+      <p className="mt-3 font-medium text-gray-700 dark:text-gray-200">방법 B — PowerShell/명령 프롬프트에서 (방법 A와 결과는 동일)</p>
+      <ol className="mt-1 list-decimal space-y-2 pl-5 text-gray-600 dark:text-gray-300">
+        <li>
+          시작 메뉴에서 <Code>PowerShell</Code> 또는 <Code>cmd</Code>를 검색해 실행하고 아래 명령을 입력합니다.
+          <Block>{`setx OLLAMA_ORIGINS "${site}"`}</Block>
+          &quot;성공: 지정한 값을 저장했습니다.&quot;라는 메시지가 뜨면 등록된 것입니다.
+        </li>
+        <li>
+          <b>이 창에는 바로 적용되지 않습니다</b> — <Code>setx</Code>는 그 이후에 새로 켜지는 프로그램부터 적용됩니다. 방법 A의
+          4~5번과 마찬가지로 트레이나 작업 관리자에서 Ollama를 완전히 종료한 뒤 다시 실행해야 합니다.
+        </li>
+      </ol>
+
+      <h2 className="mt-6 text-lg font-semibold">Linux를 쓴다면</h2>
       <p className="mt-1 text-gray-600 dark:text-gray-300">
-        방식은 같고 환경변수를 등록하는 방법만 다릅니다 — Windows는 시스템 속성의 환경 변수 설정(또는 <Code>setx</Code>)으로,
-        Linux는 systemd로 Ollama를 서비스 등록해뒀다면 서비스 파일에 <Code>Environment=&quot;OLLAMA_ORIGINS={site}&quot;</Code>를
-        추가한 뒤 서비스를 재시작하면 됩니다.
+        systemd로 Ollama를 서비스 등록해뒀다면 서비스 파일에{" "}
+        <Code>Environment=&quot;OLLAMA_ORIGINS={site}&quot;</Code>를 추가한 뒤 서비스를 재시작하면 됩니다. 터미널에서 직접
+        띄운다면 macOS와 동일하게 <Code>OLLAMA_ORIGINS={site} ollama serve</Code>를 쓰면 됩니다.
       </p>
 
       <h2 className="mt-6 text-lg font-semibold">터미널이 부담스럽다면</h2>

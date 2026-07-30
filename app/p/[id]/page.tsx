@@ -2357,6 +2357,7 @@ function StoryTab({
     groupRelations: project.groupRelations,
     personaGroupRelations: project.personaGroupRelations,
     facts: project.facts,
+    foreshadows: project.foreshadows,
     storySoFar: activePath.map((s) => s.text).join("\n\n"),
     model: model || undefined,
     llm,

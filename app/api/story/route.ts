@@ -3,6 +3,7 @@ import {
   genreLabel,
   relationLabel,
   type Fact,
+  type Foreshadow,
   type Genre,
   type Group,
   type LLMSettings,
@@ -58,9 +59,18 @@ function buildWorldContext(
   groupRelations: Relation[],
   personaGroupRelations: PersonaGroupRelation[],
   facts: Fact[],
+  foreshadows: Foreshadow[],
 ): string {
   const nameOfPersona = (id: string) => personas.find((p) => p.id === id)?.name ?? "?";
   const nameOfGroup = (id: string) => groups.find((g) => g.id === id)?.name ?? "?";
+  // 삭제된(휴지통) 인물·집단을 가리키는 관계는 클라이언트가 걸러서 안 보낼 수도 있지만, 혹시 걸러지지 않고 온 것까지
+  // 대비해 여기서도 한 번 더 막는다 — 안 걸러지면 nameOfPersona/nameOfGroup가 "?"를 반환해 프롬프트에 정체불명의
+  // "? ↔ ?" 같은 노이즈로 들어가 버림(인터뷰 쪽은 클라이언트가 이미 이렇게 거르고 있음, app/p/[id]/page.tsx InterviewTab 참고)
+  const personaIds = new Set(personas.map((p) => p.id));
+  const groupIds = new Set(groups.map((g) => g.id));
+  personaRelations = personaRelations.filter((r) => personaIds.has(r.aId) && personaIds.has(r.bId));
+  groupRelations = groupRelations.filter((r) => groupIds.has(r.aId) && groupIds.has(r.bId));
+  personaGroupRelations = personaGroupRelations.filter((r) => personaIds.has(r.personaId) && groupIds.has(r.groupId));
 
   const personaBlocks =
     personas
@@ -79,7 +89,9 @@ function buildWorldContext(
   배경 서사: ${per.backstory || "미정"}
   현재 목표: ${per.goals || "미정"} / 과거 지향: ${per.past || "미정"} / 현재 지향: ${per.present || "미정"} / 미래 지향: ${per.future || "미정"}
   금기/트리거: ${per.triggers || "미정"}
-  소속: ${myGroups.length ? myGroups.join(", ") : "무소속"}
+  소속: ${myGroups.length ? myGroups.join(", ") : "무소속"}${
+    per.notes.length ? `\n  승인된 추가 설정(인터뷰 중 확정됨): ${per.notes.join(" / ")}` : ""
+  }
   이 인물이 아는 사실(아래 목록에 없는 실제 사실은 이 인물이 모른다): ${known.length ? known.join(" / ") : "(없음 — 아무 사실도 모름)"}
   이 인물이 진실이라 믿는 오해(실제와 달라도 본인은 이렇게 믿음): ${misbeliefs.length ? misbeliefs.join(" / ") : "(없음)"}`;
       })
@@ -122,6 +134,14 @@ function buildWorldContext(
 
   const factBlocks = facts.map((f) => `- ${f.content}`).join("\n") || "(없음)";
 
+  const foreshadowBlocks =
+    foreshadows
+      .map(
+        (f) =>
+          `- 떡밥${f.number}: "${f.plantText}"${f.resolveText ? ` → 이미 회수됨: "${f.resolveText}"` : " (아직 회수되지 않음)"}`,
+      )
+      .join("\n") || "(없음)";
+
   const genreBlock = genreLabel(genre)
     ? `# 장르: ${genreLabel(genre)}\n이 장르의 문체·전개 관습을 반영해서 써라.${genre.notes ? `\n추가 설정: ${genre.notes}` : ""}\n\n`
     : "";
@@ -161,7 +181,10 @@ ${groupRelBlocks}
 ${pgRelBlocks}
 
 # 실제 사실 (전지적 작가는 이 모든 진실을 안다)
-${factBlocks}`;
+${factBlocks}
+
+# 떡밥(복선) 현황
+${foreshadowBlocks}`;
 }
 
 const SUGGEST_SCHEMA = {
@@ -191,6 +214,7 @@ export async function POST(req: Request) {
     groupRelations,
     personaGroupRelations,
     facts,
+    foreshadows = [],
     storySoFar,
     direction,
     newText,
@@ -207,6 +231,7 @@ export async function POST(req: Request) {
     groupRelations: Relation[];
     personaGroupRelations: PersonaGroupRelation[];
     facts: Fact[];
+    foreshadows?: Foreshadow[];
     storySoFar: string;
     direction?: string;
     newText?: string;
@@ -215,7 +240,18 @@ export async function POST(req: Request) {
     viewpoint?: Viewpoint;
   };
 
-  const context = buildWorldContext(genre, world, personas, groups, personaRelations, groupRelations, personaGroupRelations, facts);
+  const context = buildWorldContext(
+    genre,
+    world,
+    personas,
+    groups,
+    personaRelations,
+    groupRelations,
+    personaGroupRelations,
+    facts,
+    foreshadows,
+  );
+  const unresolvedForeshadows = foreshadows.filter((f) => !f.resolveText);
   const storyBlock = `# 지금까지의 이야기 (새로 추가되기 전)\n${storySoFar || "(아직 없음)"}`;
   const vpMode = viewpoint?.mode ?? "omniscient";
   const vpRole = narratorRoleLabel(vpMode);
@@ -245,7 +281,8 @@ ${vpMode === "omniscient" ? "" : `\n이 이야기는 ${vpRole}가 쓰고 있다.
 - 세계관 규칙(특히 "절대 불가능한 규칙")을 어겼는가
 - 캐릭터가 몰라야 할 사실을 아는 것처럼 나왔거나, 존재를 모르는 인물/집단을 아는 것처럼 나왔는가
 - 캐릭터 간/집단 간 관계 점수·태도와 모순되는 방식으로 상호작용했는가
-- 이미 확립된 사실이나 이전 이야기 내용과 모순되는 내용이 나왔는가${viewpointCheckItem}
+- 이미 확립된 사실이나 이전 이야기 내용과 모순되는 내용이 나왔는가
+- 아직 회수되지 않은 떡밥(복선)의 내용과 모순되는 전개가 나왔는가${viewpointCheckItem}
 
 사소한 문체·어투 문제는 지적하지 마라 — 설정과의 실제 충돌만 짚어라. 문제가 없으면 빈 배열을 반환하라.
 
@@ -260,7 +297,11 @@ ${newText || "(없음)"}
       return await respond(system, CHECK_SCHEMA, 0.3);
     } else if (mode === "suggest") {
       const system = `너는 ${vpRole}다. 아래 설정을 참고해 다음에 일어날 수 있는, 서로 다른 방향의 전개를 3가지 제안하라.
-각 제안은 1~2문장으로 짧게, 서로 겹치지 않게, 등장인물의 성격·관계·세계관 규칙에 맞아야 한다. 아직 이야기가 없다면 이야기를 시작할 상황을 3가지 제안하라.
+각 제안은 1~2문장으로 짧게, 서로 겹치지 않게, 등장인물의 성격·관계·세계관 규칙에 맞아야 한다. 아직 이야기가 없다면 이야기를 시작할 상황을 3가지 제안하라.${
+        unresolvedForeshadows.length
+          ? ` 아직 회수되지 않은 떡밥이 있다면 그중 하나를 회수하는 방향도 고려하되, 매번 억지로 끼워 넣지는 마라.`
+          : ""
+      }
 ${vpInstruction}
 
 ${context}
@@ -272,6 +313,7 @@ ${storyBlock}
     } else {
       const system = `너는 ${vpRole}다. 아래 설정을 참고해 이야기를 소설체로 이어 써라.
 등장인물의 대사·행동·심리 묘사를 생생하게 포함하고, 각 인물의 성격·가치관·말투·서로의 관계·세계관 규칙에서 벗어나지 마라. 3~6문단 분량으로 써라.
+아직 회수되지 않은 떡밥(복선)의 내용과 모순되지 않게 쓰고, 다음 전개 방향이 그 떡밥을 회수하는 내용이면 자연스럽게 회수하라.
 ${vpInstruction}
 
 ${context}

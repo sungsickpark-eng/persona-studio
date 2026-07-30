@@ -726,7 +726,7 @@ function SettingsPanel({
                 <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">모델</p>
                 <input
                   className="w-full rounded border px-2 py-1"
-                  placeholder="gemini-2.0-flash"
+                  placeholder="gemini-2.5-flash"
                   value={draft.geminiModel}
                   onChange={(e) => set("geminiModel", e.target.value)}
                 />

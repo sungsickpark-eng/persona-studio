@@ -76,7 +76,16 @@ export default function OllamaSetupPage() {
         <b>Ollama를 실행하는 각자의 컴퓨터</b>에서 해야 합니다.
       </p>
 
-      <h2 className="mt-6 text-lg font-semibold">3. 이 사이트 허용하기 (macOS, 메뉴바 앱 기준 — 추천)</h2>
+      <h2 className="mt-6 text-lg font-semibold">3. 이 사이트 허용하기 (macOS, 메뉴바 앱 기준)</h2>
+
+      <p className="mt-1 rounded bg-amber-50 p-2 text-[13px] text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        ⚠️ macOS는 Windows·Linux와 달리 <Code>launchctl setenv</Code>만 실행하면 <b>맥을 껐다 켜거나 로그아웃하는 순간
+        설정이 초기화</b>됩니다. 아래 &quot;방법 B&quot;로 한 번만 등록해두면 그럴 걱정 없이 계속 유지됩니다 — 이쪽을 추천합니다.
+      </p>
+
+      <p className="mt-3 font-medium text-gray-700 dark:text-gray-200">
+        방법 A — 지금 바로 테스트만 해보고 싶다면 (재부팅하면 다시 해야 함)
+      </p>
       <ol className="mt-1 list-decimal space-y-3 pl-5 text-gray-600 dark:text-gray-300">
         <li>
           터미널(Terminal.app)을 열고 아래 명령으로 이 사이트를 허용 목록에 등록합니다.
@@ -85,7 +94,42 @@ export default function OllamaSetupPage() {
         <li>
           메뉴바의 Ollama 아이콘을 클릭해 <b>Quit Ollama</b>로 완전히 종료합니다.
         </li>
-        <li>Spotlight(⌘+Space) 등으로 Ollama를 다시 실행합니다. 이후로는 터미널을 계속 열어둘 필요 없이 평소처럼 동작합니다.</li>
+        <li>Spotlight(⌘+Space) 등으로 Ollama를 다시 실행합니다.</li>
+      </ol>
+
+      <p className="mt-4 font-medium text-gray-700 dark:text-gray-200">
+        방법 B — 재부팅해도 계속 유지되게 하기 (한 번만 설정, 이후로는 신경 쓸 필요 없음 — 추천)
+      </p>
+      <ol className="mt-1 list-decimal space-y-3 pl-5 text-gray-600 dark:text-gray-300">
+        <li>
+          터미널을 열고 아래 명령을 통째로 복사해 붙여넣고 실행합니다. 맥이 로그인할 때마다 이 사이트를 자동으로 허용 목록에
+          등록해주는 작은 설정 파일을 만드는 명령입니다.
+          <Block>{`mkdir -p ~/Library/LaunchAgents
+cat > ~/Library/LaunchAgents/com.ollama.setenv.plist <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ollama.setenv</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/launchctl</string>
+        <string>setenv</string>
+        <string>OLLAMA_ORIGINS</string>
+        <string>${site}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+EOF
+launchctl load ~/Library/LaunchAgents/com.ollama.setenv.plist`}</Block>
+        </li>
+        <li>
+          메뉴바의 Ollama 아이콘을 클릭해 <b>Quit Ollama</b>로 완전히 종료한 뒤, Spotlight(⌘+Space)로 다시 실행합니다.
+        </li>
+        <li>끝입니다. 이후로는 맥을 껐다 켜거나 로그아웃해도 이 설정이 계속 자동으로 적용됩니다.</li>
       </ol>
 
       <h2 className="mt-6 text-lg font-semibold">터미널에서 직접 실행하는 방법</h2>
@@ -106,6 +150,10 @@ export default function OllamaSetupPage() {
         매번 주소를 새로 등록하기 번거로우면 전부 허용해둘 수 있습니다(보안은 느슨해지지만 개인 컴퓨터 용도로는 괜찮습니다):
       </p>
       <Block>{`launchctl setenv OLLAMA_ORIGINS "*"`}</Block>
+      <p className="mt-1 text-gray-600 dark:text-gray-300">
+        macOS에서는 이 값도 위 &quot;방법 B&quot;의 plist 안 <Code>{`<string>${site}</string>`}</Code> 자리에{" "}
+        <Code>*</Code>를 넣으면 재부팅해도 유지됩니다.
+      </p>
 
       <h2 className="mt-6 text-lg font-semibold">Windows에서 설정하는 방법</h2>
       <p className="mt-1 text-gray-600 dark:text-gray-300">방법은 두 가지입니다. 둘 중 하나만 하면 됩니다.</p>

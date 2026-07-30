@@ -441,7 +441,7 @@ export const DEFAULT_LLM_SETTINGS: LLMSettings = {
   openaiModel: "gpt-4o-mini",
   geminiKey: "",
   geminiUrl: "https://generativelanguage.googleapis.com",
-  geminiModel: "gemini-2.0-flash",
+  geminiModel: "gemini-2.5-flash",
   claudeKey: "",
   claudeUrl: "https://api.anthropic.com",
   claudeModel: "claude-sonnet-5",
@@ -452,7 +452,10 @@ const LLM_SETTINGS_KEY = "persona-studio-llm-settings";
 export function loadLLMSettings(): LLMSettings {
   if (typeof window === "undefined") return DEFAULT_LLM_SETTINGS;
   try {
-    return { ...DEFAULT_LLM_SETTINGS, ...JSON.parse(localStorage.getItem(LLM_SETTINGS_KEY) ?? "{}") };
+    const settings = { ...DEFAULT_LLM_SETTINGS, ...JSON.parse(localStorage.getItem(LLM_SETTINGS_KEY) ?? "{}") };
+    // gemini-2.0-flash가 API에서 내려간 뒤 남아있는 구버전 저장값을 새 기본값으로 교체
+    if (settings.geminiModel === "gemini-2.0-flash") settings.geminiModel = DEFAULT_LLM_SETTINGS.geminiModel;
+    return settings;
   } catch {
     return DEFAULT_LLM_SETTINGS;
   }

@@ -79,12 +79,13 @@ export function llmConnectErrorMessage(llm: LLMSettings | undefined): string {
 }
 
 async function callOpenAI(settings: LLMSettings, system: string, messages: ChatMsg[], temperature: number) {
-  if (!settings.openaiKey) throw new Error("OpenAI API 키가 설정되지 않았습니다. 설정 도구에서 입력하세요.");
-  const url = settings.openaiUrl || DEFAULT_LLM_SETTINGS.openaiUrl;
-  const model = settings.openaiModel || DEFAULT_LLM_SETTINGS.openaiModel;
+  const key = settings.openaiKey.trim();
+  if (!key) throw new Error("OpenAI API 키가 설정되지 않았습니다. 설정 도구에서 입력하세요.");
+  const url = (settings.openaiUrl || DEFAULT_LLM_SETTINGS.openaiUrl).trim().replace(/\/+$/, "");
+  const model = settings.openaiModel.trim() || DEFAULT_LLM_SETTINGS.openaiModel;
   const res = await fetch(`${url}/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${settings.openaiKey}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model,
       messages: [
@@ -101,16 +102,21 @@ async function callOpenAI(settings: LLMSettings, system: string, messages: ChatM
 }
 
 async function callGemini(settings: LLMSettings, system: string, messages: ChatMsg[], temperature: number) {
-  if (!settings.geminiKey) throw new Error("Gemini API 키가 설정되지 않았습니다. 설정 도구에서 입력하세요.");
-  const url = settings.geminiUrl || DEFAULT_LLM_SETTINGS.geminiUrl;
-  const model = settings.geminiModel || DEFAULT_LLM_SETTINGS.geminiModel;
+  const key = settings.geminiKey.trim();
+  if (!key) throw new Error("Gemini API 키가 설정되지 않았습니다. 설정 도구에서 입력하세요.");
+  const url = (settings.geminiUrl || DEFAULT_LLM_SETTINGS.geminiUrl).trim().replace(/\/+$/, "");
+  const model = settings.geminiModel.trim() || DEFAULT_LLM_SETTINGS.geminiModel;
   const contents = (messages.length ? messages : [{ role: "user" as const, content: "위 지침에 따라 응답하라." }]).map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
   }));
-  const res = await fetch(`${url}/v1beta/models/${model}:generateContent?key=${settings.geminiKey}`, {
+  // 키를 URL 쿼리 문자열(?key=...)로 보내는 옛 방식 대신, 구글이 현재 권장하는 x-goog-api-key 헤더로 보낸다
+  // (URL에 키가 안 남고, 프록시·로그에 실수로 남는 경우도 줄어듦 — 인증 오류(401) 자체의 근본 원인은 대개 키 값이
+  // 잘못됐거나(OAuth 클라이언트 ID 등 다른 종류의 자격증명을 붙여넣은 경우 포함) Vertex AI 전용 주소를 썼을 때이므로,
+  // 진짜 Generative Language API 키인지(https://aistudio.google.com/apikey)를 먼저 확인해야 함)
+  const res = await fetch(`${url}/v1beta/models/${model}:generateContent`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents,
@@ -124,16 +130,17 @@ async function callGemini(settings: LLMSettings, system: string, messages: ChatM
 }
 
 async function callClaude(settings: LLMSettings, system: string, messages: ChatMsg[], schema: object, temperature: number) {
-  if (!settings.claudeKey) throw new Error("Claude API 키가 설정되지 않았습니다. 설정 도구에서 입력하세요.");
-  const url = settings.claudeUrl || DEFAULT_LLM_SETTINGS.claudeUrl;
-  const model = settings.claudeModel || DEFAULT_LLM_SETTINGS.claudeModel;
+  const key = settings.claudeKey.trim();
+  if (!key) throw new Error("Claude API 키가 설정되지 않았습니다. 설정 도구에서 입력하세요.");
+  const url = (settings.claudeUrl || DEFAULT_LLM_SETTINGS.claudeUrl).trim().replace(/\/+$/, "");
+  const model = settings.claudeModel.trim() || DEFAULT_LLM_SETTINGS.claudeModel;
   // Claude는 Ollama/OpenAI/Gemini와 달리 "JSON으로만 답하라"는 강제 옵션이 없어서, 스키마를 도구(tool) 하나로 등록하고
   // tool_choice로 그 도구 호출을 강제하는 방식으로 구조화된 출력을 받는다(공식 권장 패턴) — input이 이미 파싱된 객체로 옴
   const res = await fetch(`${url}/v1/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": settings.claudeKey,
+      "x-api-key": key,
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({

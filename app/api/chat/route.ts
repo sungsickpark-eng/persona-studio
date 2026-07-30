@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
-import { isRevealed, relationLabel, type Chapter, type Fact, type LLMSettings, type Msg, type Persona, type World } from "@/lib/store";
+import {
+  genreLabel,
+  isRevealed,
+  relationLabel,
+  type Chapter,
+  type Fact,
+  type Genre,
+  type LLMSettings,
+  type Msg,
+  type Persona,
+  type World,
+} from "@/lib/store";
 import { buildOllamaRequest, callLLM, isOllamaProvider, llmConnectErrorMessage } from "@/lib/llm";
 
 const STRENGTH: Record<number, string> = {
@@ -23,6 +34,7 @@ type RelationInfo = { name: string; score: number; aware: boolean };
 type GroupRelationInfo = { name: string; score: number; personaAware: boolean };
 
 function buildSystemPrompt(
+  genre: Genre,
   world: World,
   persona: Persona,
   groups: GroupInfo[],
@@ -41,9 +53,14 @@ function buildSystemPrompt(
     .map((f) => f.access[persona.id])
     .filter((a): a is { status: "misbelieves"; misbelief: string } => a?.status === "misbelieves")
     .map((a) => a.misbelief);
+  const genreBlock = genreLabel(genre)
+    ? `\n# 장르: ${genreLabel(genre)}\n이 장르의 문체·전개 관습(어휘 선택, 긴장감을 쌓는 방식, 전형적인 관계 구도 등)을 캐릭터의 말투·반응에 자연스럽게 반영하라.${
+        genre.notes ? `\n추가 설정: ${genre.notes}` : ""
+      }\n`
+    : "";
 
   return `너는 창작 시뮬레이션 속 캐릭터를 연기한다. 작가가 캐릭터를 인터뷰하는 상황이다.
-
+${genreBlock}
 # 세계관 (이 규칙 밖의 설정을 임의로 만들지 마라)
 - 시대/장소: ${world.overview || "미정"}
 - 자연 법칙 & 기후: ${world.natureLaws || "미정"}
@@ -152,6 +169,7 @@ const SCHEMA = {
 
 export async function POST(req: Request) {
   const {
+    genre = { preset: "", custom: "", notes: "" },
     world,
     persona,
     groups = [],
@@ -166,6 +184,7 @@ export async function POST(req: Request) {
     model = "",
     llm,
   } = (await req.json()) as {
+    genre?: Genre;
     world: World;
     persona: Persona;
     groups?: GroupInfo[];
@@ -181,7 +200,7 @@ export async function POST(req: Request) {
     llm?: LLMSettings;
   };
 
-  const system = buildSystemPrompt(world, persona, groups, relations, groupRelations, facts, chapters, currentChapterId, strength);
+  const system = buildSystemPrompt(genre, world, persona, groups, relations, groupRelations, facts, chapters, currentChapterId, strength);
   const messages: { role: "user" | "assistant"; content: string }[] = [
     ...history.map((m) =>
       m.role === "author"

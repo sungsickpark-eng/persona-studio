@@ -166,6 +166,17 @@ export type World = {
   slang: string; // 속어 & 표현
 };
 
+// 스토리 전체의 장르. preset이 "기타"일 때만 custom(자유 입력)을 실제 장르명으로 쓴다.
+// notes는 장르 자체가 아니라 그 장르 안에서의 톤·참고작품·지키거나 피하고 싶은 관습 등 부가 설정
+export type Genre = { preset: string; custom: string; notes: string };
+
+export const DEFAULT_GENRE: Genre = { preset: "", custom: "", notes: "" };
+
+export function genreLabel(genre: Genre): string {
+  if (genre.preset === "기타") return genre.custom.trim() || "기타";
+  return genre.preset;
+}
+
 // 이야기를 막/장 등으로 정리하는 목차 트리. 서술 분기 트리(StoryNode)와는 별개 — 작가가 직접 구성하는 구조.
 // 제목은 자유 문자열("1막", "3장" 등)이라 깊이 제한 없이 원하는 대로 중첩할 수 있다
 export type Chapter = { id: string; parentId: string | null; title: string };
@@ -268,6 +279,7 @@ export const VIEWPOINT_LABEL: Record<ViewpointMode, string> = {
 export type Project = {
   id: string;
   name: string;
+  genre: Genre;
   world: World;
   personas: Persona[];
   groups: Group[];
@@ -303,6 +315,7 @@ export function loadProjects(): Project[] {
       p.chapters ??= [];
       p.foreshadows ??= [];
       p.viewpoint ??= { ...DEFAULT_VIEWPOINT };
+      p.genre ??= { ...DEFAULT_GENRE };
       // 구버전 세계관(setting/rules/taboos 3필드)을 5개 대분류 구조로 확장
       const legacyWorld = p.world as World & { setting?: string; rules?: string };
       legacyWorld.overview ??= legacyWorld.setting ?? "";
@@ -428,6 +441,7 @@ export function newProject(name: string): Project {
   return {
     id: uid(),
     name,
+    genre: { ...DEFAULT_GENRE },
     world: {
       overview: "",
       natureLaws: "",

@@ -40,7 +40,7 @@ import {
 import { exportObsidianFiles, exportStoryFile } from "@/lib/export";
 import RelationshipGraph from "./RelationshipGraph";
 
-const TABS = ["세계관", "사실·비밀", "캐릭터", "집단", "관계", "인터뷰", "떡밥", "승인함", "삭제됨"] as const;
+const TABS = ["장르", "세계관", "사실·비밀", "캐릭터", "집단", "관계", "인터뷰", "떡밥", "승인함", "삭제됨"] as const;
 
 // Ollama에 연결이 안 될 때(fetch 자체가 실패)의 공통 안내 — 배포된 사이트에서는 이 브라우저가 자신의 Ollama로
 // 직접 접속하는 구조라, Ollama 쪽에서 이 사이트 주소를 허용(OLLAMA_ORIGINS)하지 않았으면 CORS로 막힘. 매번 다시 찾아보지
@@ -264,6 +264,7 @@ export default function Workspace() {
               </button>
             </div>
             <div className="overflow-y-auto p-5">
+              {tab === "장르" && <GenreTab project={project} update={update} />}
               {tab === "세계관" && <WorldTab project={project} update={update} />}
               {tab === "사실·비밀" && <FactsTab project={project} update={update} />}
               {tab === "캐릭터" && <PersonasTab project={project} update={update} focusId={focusId} />}
@@ -840,6 +841,104 @@ const WORLD_SECTIONS = [
     ],
   },
 ] as const;
+
+// "모든 장르"를 목표로 한 카탈로그 — 정통 장르부터 한국 웹소설에서 흔한 트로프(회귀물/빙의물/게임판타지 등)까지 포함.
+// 목록에 없는 장르는 맨 끝의 "기타"를 골라 직접 입력
+const GENRE_OPTIONS = [
+  "판타지",
+  "SF (공상과학)",
+  "로맨스",
+  "로맨스 판타지",
+  "미스터리",
+  "스릴러",
+  "호러 (공포)",
+  "무협",
+  "무협 판타지",
+  "사극·역사",
+  "코미디",
+  "드라마",
+  "액션",
+  "어드벤처 (모험)",
+  "성장물",
+  "느와르",
+  "디스토피아",
+  "포스트 아포칼립스",
+  "하이틴",
+  "학원물",
+  "오컬트",
+  "사이버펑크",
+  "스팀펑크",
+  "밀리터리·전쟁",
+  "스포츠",
+  "일상물 (힐링)",
+  "범죄",
+  "법정물",
+  "의학물",
+  "정치물",
+  "재난",
+  "좀비",
+  "뱀파이어",
+  "회귀물",
+  "빙의물",
+  "환생물",
+  "게임판타지",
+  "육아물",
+  "첩보물",
+  "라이트노벨풍",
+] as const;
+
+function GenreTab({ project, update }: TabProps) {
+  const genre = project.genre;
+  const setPreset = (preset: string) =>
+    update((p) => {
+      p.genre.preset = preset;
+      if (preset !== "기타") p.genre.custom = "";
+    });
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        이 스토리의 장르를 설정하면 인터뷰·이야기 쓰기에서 그 장르의 문체·전개 관습을 참고합니다. 안 골라도 진행에는 지장이
+        없습니다.
+      </p>
+      <div>
+        <p className="mb-1 text-sm font-semibold text-gray-600 dark:text-gray-300">장르</p>
+        <select
+          value={genre.preset}
+          onChange={(e) => setPreset(e.target.value)}
+          className="w-full rounded border px-2 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900"
+        >
+          <option value="">선택 안 함</option>
+          {GENRE_OPTIONS.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+          <option value="기타">기타 (직접 입력)</option>
+        </select>
+      </div>
+      {genre.preset === "기타" && (
+        <div>
+          <p className="mb-1 text-sm font-semibold text-gray-600 dark:text-gray-300">장르 직접 입력</p>
+          <input
+            className="w-full rounded border px-2 py-1.5 text-sm"
+            placeholder="예: 스페이스 오페라, 느와르 미스터리 등"
+            value={genre.custom}
+            onChange={(e) => update((p) => void (p.genre.custom = e.target.value))}
+          />
+        </div>
+      )}
+      <div>
+        <p className="mb-1 text-sm font-semibold text-gray-600 dark:text-gray-300">기타 설정</p>
+        <textarea
+          className="min-h-[120px] w-full rounded border px-2 py-1.5 text-sm"
+          placeholder="분위기·톤, 참고하고 싶은 작품, 이 장르에서 특히 지키거나 피하고 싶은 관습 등 자유롭게 적어주세요."
+          value={genre.notes}
+          onChange={(e) => update((p) => void (p.genre.notes = e.target.value))}
+        />
+      </div>
+    </div>
+  );
+}
 
 function WorldTab({ project, update }: TabProps) {
   const setField = (key: keyof Project["world"], value: string) => update((p) => void (p.world[key] = value));
@@ -1961,6 +2060,7 @@ function InterviewTab({ project, update, model, llm }: TabProps & { model: strin
         })
         .filter((x): x is { name: string; score: number; personaAware: boolean } => !!x);
       const data = await postAI("/api/chat", {
+        genre: project.genre,
         world: project.world,
         persona,
         groups,
@@ -2249,6 +2349,7 @@ function StoryTab({
   }, [displayedNodes.length, loading]);
 
   const payload = () => ({
+    genre: project.genre,
     world: project.world,
     personas: project.personas.filter((p) => !p.deleted),
     groups: project.groups.filter((g) => !g.deleted),

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import {
+  genreLabel,
   relationLabel,
   type Fact,
+  type Genre,
   type Group,
   type LLMSettings,
   type Persona,
@@ -48,6 +50,7 @@ function viewpointInstruction(viewpoint: Viewpoint | undefined, personas: Person
 // 인터뷰용 buildSystemPrompt와 달리, 특정 캐릭터의 정보 비대칭을 걸러내지 않고 프로젝트 전체를 그대로 요약한다
 // (전지적 작가는 모든 인물·집단·관계·사실을 다 안다는 전제)
 function buildWorldContext(
+  genre: Genre,
   world: World,
   personas: Persona[],
   groups: Group[],
@@ -119,7 +122,11 @@ function buildWorldContext(
 
   const factBlocks = facts.map((f) => `- ${f.content}`).join("\n") || "(없음)";
 
-  return `# 세계관
+  const genreBlock = genreLabel(genre)
+    ? `# 장르: ${genreLabel(genre)}\n이 장르의 문체·전개 관습을 반영해서 써라.${genre.notes ? `\n추가 설정: ${genre.notes}` : ""}\n\n`
+    : "";
+
+  return `${genreBlock}# 세계관
 - 시대/장소: ${world.overview || "미정"}
 - 자연 법칙 & 기후: ${world.natureLaws || "미정"}
 - 힘의 근원(마법/기술): ${world.magicSource || "미정"}
@@ -176,6 +183,7 @@ const CHECK_SCHEMA = {
 export async function POST(req: Request) {
   const {
     mode,
+    genre = { preset: "", custom: "", notes: "" },
     world,
     personas,
     groups,
@@ -191,6 +199,7 @@ export async function POST(req: Request) {
     viewpoint,
   } = (await req.json()) as {
     mode: "suggest" | "write" | "check";
+    genre?: Genre;
     world: World;
     personas: Persona[];
     groups: Group[];
@@ -206,7 +215,7 @@ export async function POST(req: Request) {
     viewpoint?: Viewpoint;
   };
 
-  const context = buildWorldContext(world, personas, groups, personaRelations, groupRelations, personaGroupRelations, facts);
+  const context = buildWorldContext(genre, world, personas, groups, personaRelations, groupRelations, personaGroupRelations, facts);
   const storyBlock = `# 지금까지의 이야기 (새로 추가되기 전)\n${storySoFar || "(아직 없음)"}`;
   const vpMode = viewpoint?.mode ?? "omniscient";
   const vpRole = narratorRoleLabel(vpMode);

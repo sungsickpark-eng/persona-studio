@@ -2222,6 +2222,23 @@ function StoryTab({
       p.viewpoint = { ...p.viewpoint, narratorPersonaId: personaId || null };
     });
 
+  // 챕터별 시점 재정의 — mode가 빈 문자열이면 "기본값 사용"으로 되돌리는 것(그 챕터의 viewpoint 지정을 아예 지움)
+  const setChapterViewpointMode = (chapterId: string, mode: ViewpointMode | "") =>
+    update((p) => {
+      const c = p.chapters.find((x) => x.id === chapterId);
+      if (!c) return;
+      if (!mode) {
+        delete c.viewpoint;
+        return;
+      }
+      c.viewpoint = { mode, narratorPersonaId: VIEWPOINT_NEEDS_NARRATOR(mode) ? (c.viewpoint?.narratorPersonaId ?? null) : null };
+    });
+  const setChapterNarrator = (chapterId: string, personaId: string) =>
+    update((p) => {
+      const c = p.chapters.find((x) => x.id === chapterId);
+      if (c?.viewpoint) c.viewpoint = { ...c.viewpoint, narratorPersonaId: personaId || null };
+    });
+
   // 떡밥 탭(다른 팝업)에서 설정/회수 문구를 클릭했을 때도 같은 방식으로 이동 — 팝업을 닫고 나면 부모가 jumpNodeId를 세팅해준다
   useEffect(() => {
     if (!jumpNodeId) return;
@@ -2352,6 +2369,7 @@ function StoryTab({
   const activePath = storyActivePath(project.story, project.storyCurrentId);
   const isUnassignedSelected = selectedChapterId === UNASSIGNED_CHAPTER;
   const selectedChapterPath = chapterPath(project.chapters, isUnassignedSelected ? null : selectedChapterId);
+  const selectedChapter = isUnassignedSelected ? undefined : project.chapters.find((c) => c.id === selectedChapterId);
   // 지점 수 집계는 activePath(지금 이어 쓰고 있는 한 줄기)만 기준으로 삼는다 — project.story 전체(지난 세션에 branch 전환 기능이
   // 있던 시절 남은 가지 등)를 기준으로 세면 "전체 스토리" 수(활성 경로 기준)와 챕터별 합이 안 맞을 수 있어서,
   // "전체 = 챕터들의 합 + 미분류"가 항상 정확히 맞아떨어지도록 소속 판정은 activePath로 통일함.
@@ -2535,6 +2553,47 @@ function StoryTab({
           </button>
         </div>
       </div>
+
+      {/* 챕터별 시점 재정의 — 특정 챕터를 선택 중일 때만 뜨고, "기본값 사용"이면 위 프로젝트 기본 시점을 그대로 따름 */}
+      {selectedChapter && (
+        <div className="mt-1 flex shrink-0 flex-wrap items-center gap-2 text-xs text-gray-400">
+          <span>&quot;{selectedChapter.title}&quot;만 다른 시점:</span>
+          <select
+            value={selectedChapter.viewpoint?.mode ?? ""}
+            onChange={(e) => setChapterViewpointMode(selectedChapter.id, e.target.value as ViewpointMode | "")}
+            title="이 챕터(와 하위 챕터)에서만 다른 서술 시점을 씁니다. 지정하지 않으면 프로젝트 기본 시점을 따릅니다"
+            className="rounded border px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+          >
+            <option value="">기본값 사용</option>
+            {(Object.entries(VIEWPOINT_LABEL) as [ViewpointMode, string][]).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          {selectedChapter.viewpoint && VIEWPOINT_NEEDS_NARRATOR(selectedChapter.viewpoint.mode) && (
+            <select
+              value={selectedChapter.viewpoint.narratorPersonaId ?? ""}
+              onChange={(e) => setChapterNarrator(selectedChapter.id, e.target.value)}
+              title="이 챕터 시점의 서술자('나')로 삼을 캐릭터를 고릅니다"
+              className={`rounded border px-2 py-1 text-xs dark:bg-gray-900 ${
+                selectedChapter.viewpoint.narratorPersonaId
+                  ? "dark:border-gray-700"
+                  : "border-orange-400 text-orange-600 dark:border-orange-500 dark:text-orange-400"
+              }`}
+            >
+              <option value="">서술자를 고르세요</option>
+              {project.personas
+                .filter((p) => !p.deleted)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+          )}
+        </div>
+      )}
 
       {/* 챕터 카드 — 왼쪽 챕터 구성 트리와 같은 selectedChapterId를 클릭 한 번으로 전환. 풀 스토리 카드는 항상 전체 이야기(필터 해제)로 이동 */}
       <div className="mt-2 flex shrink-0 gap-2 overflow-x-auto pb-1">

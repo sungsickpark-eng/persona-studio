@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import {
   type Chapter,
   chapterOrderIndex,
+  DEFAULT_VIEWPOINT,
   genreLabel,
   relationLabel,
+  resolveChapterViewpoint,
   type Fact,
   type Foreshadow,
   type Genre,
@@ -275,9 +277,11 @@ export async function POST(req: Request) {
   );
   const unresolvedForeshadows = foreshadows.filter((f) => !f.resolveText);
   const storyBlock = `# 지금까지의 이야기 (새로 추가되기 전)\n${storySoFar || "(아직 없음)"}`;
-  const vpMode = viewpoint?.mode ?? "omniscient";
+  // 챕터(또는 그 상위 막)에 이 챕터만의 시점이 지정돼 있으면 그걸 쓰고, 없으면 프로젝트 기본 시점을 그대로 따른다
+  const effectiveViewpoint = resolveChapterViewpoint(chapters, currentChapterId, viewpoint ?? DEFAULT_VIEWPOINT);
+  const vpMode = effectiveViewpoint.mode;
   const vpRole = narratorRoleLabel(vpMode);
-  const vpInstruction = viewpointInstruction(viewpoint, personas);
+  const vpInstruction = viewpointInstruction(effectiveViewpoint, personas);
 
   // 로컬 Ollama는 서버가 대신 호출하지 않는다 — 배포 환경에선 그 "localhost"가 서버 자신을 가리켜 각 사용자의
   // 컴퓨터와 무관해지므로, 요청만 조립해 돌려주고 실제 호출은 항상 사용자의 브라우저가 직접 한다(lib/llm.ts 참고)

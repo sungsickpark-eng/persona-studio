@@ -182,8 +182,10 @@ export function genreLabel(genre: Genre): string {
 }
 
 // 이야기를 막/장 등으로 정리하는 목차 트리. 서술 분기 트리(StoryNode)와는 별개 — 작가가 직접 구성하는 구조.
-// 제목은 자유 문자열("1막", "3장" 등)이라 깊이 제한 없이 원하는 대로 중첩할 수 있다
-export type Chapter = { id: string; parentId: string | null; title: string };
+// 제목은 자유 문자열("1막", "3장" 등)이라 깊이 제한 없이 원하는 대로 중첩할 수 있다.
+// viewpoint가 없으면 프로젝트 기본 시점을 그대로 따르고(inherit), 있으면 이 챕터(와 그 하위)에서 그 시점으로 덮어씀 —
+// 자식이 직접 지정하지 않는 한 부모(막)의 지정을 물려받으므로 "1막은 전지적 작가, 그 안 2장만 민수 1인칭" 같은 구성이 가능
+export type Chapter = { id: string; parentId: string | null; title: string; viewpoint?: Viewpoint };
 
 // 챕터 목차를 부모-자식 깊이 우선 순서로 정렬 (groupTreeOrder와 같은 패턴)
 export function chapterTreeOrder(chapters: Chapter[]): { chapter: Chapter; depth: number }[] {
@@ -222,6 +224,16 @@ export function chapterPath(chapters: Chapter[], chapterId: string | null | unde
     cur = cur.parentId ? byId.get(cur.parentId) : undefined;
   }
   return path;
+}
+
+// 지금 쓰는 챕터에 적용할 시점을 결정한다 — 그 챕터부터 최상위 막까지 거슬러 올라가며(자기 자신 먼저) 가장 가까운
+// viewpoint 지정을 찾고, 아무 조상도 지정한 게 없으면 프로젝트 기본 시점(fallback)을 그대로 쓴다
+export function resolveChapterViewpoint(chapters: Chapter[], chapterId: string | null | undefined, fallback: Viewpoint): Viewpoint {
+  const path = chapterPath(chapters, chapterId); // [최상위, ..., 자기 자신] 순서 — 가까운 것부터 보려면 뒤에서부터
+  for (let i = path.length - 1; i >= 0; i--) {
+    if (path[i].viewpoint) return path[i].viewpoint!;
+  }
+  return fallback;
 }
 
 // 챕터 목차 순서(chapterTreeOrder) 상에서 몇 번째인지 — "더 이른지/늦은지" 비교에 씀. 없으면 -1(가장 이른 것보다도 앞)

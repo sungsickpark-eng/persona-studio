@@ -42,6 +42,33 @@ import RelationshipGraph from "./RelationshipGraph";
 
 const TABS = ["세계관", "사실·비밀", "캐릭터", "집단", "관계", "인터뷰", "떡밥", "승인함", "삭제됨"] as const;
 
+// Ollama에 연결이 안 될 때(fetch 자체가 실패)의 공통 안내 — 배포된 사이트에서는 이 브라우저가 자신의 Ollama로
+// 직접 접속하는 구조라, Ollama 쪽에서 이 사이트 주소를 허용(OLLAMA_ORIGINS)하지 않았으면 CORS로 막힘
+const ollamaConnectHint = (url: string) =>
+  `이 브라우저에서 Ollama(${url})에 연결할 수 없습니다. 이 컴퓨터에서 'ollama serve'가 실행 중인지, 이 사이트 주소가 Ollama에 허용돼 있는지(OLLAMA_ORIGINS 환경변수) 확인하세요.`;
+
+// /api/chat, /api/story 공용 호출기. provider가 로컬 LLM(Ollama)이면 서버가 요청만 조립해 `{ __ollamaRelay }`로 돌려주고
+// (Vercel 같은 배포 환경에서 "localhost"가 서버 자신을 가리키는 문제 때문 — lib/llm.ts 상단 주석 참고), 이 함수가 그걸 받아
+// 실제 fetch를 이 브라우저에서 직접 사용자의 Ollama로 보낸다. 그 외 provider는 서버가 이미 최종 결과를 응답해 그대로 반환.
+async function postAI(path: "/api/chat" | "/api/story", body: unknown) {
+  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "요청 실패");
+  if (data.__ollamaRelay) {
+    const { url, body: relayBody } = data.__ollamaRelay as { url: string; body: unknown };
+    let ollamaRes: Response;
+    try {
+      ollamaRes = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(relayBody) });
+    } catch {
+      throw new Error(ollamaConnectHint(url));
+    }
+    if (!ollamaRes.ok) throw new Error(`Ollama ${ollamaRes.status}: ${await ollamaRes.text()}`);
+    const ollamaData = await ollamaRes.json();
+    return JSON.parse(ollamaData.message?.content ?? "{}");
+  }
+  return data;
+}
+
 // "이야기 쓰기" 챕터 카드에서 어느 챕터에도 안 속한 지점을 가리키는 특수 선택값 — 실제 챕터 id(uid())와 절대 겹치지 않음
 const UNASSIGNED_CHAPTER = "__unassigned__";
 type Tab = (typeof TABS)[number];
@@ -153,7 +180,9 @@ export default function Workspace() {
         </div>
       </header>
 
-      {modelPanelOpen && <ModelPanel current={model} onChoose={chooseModel} onClose={() => setModelPanelOpen(false)} />}
+      {modelPanelOpen && (
+        <ModelPanel current={model} ollamaUrl={llmSettings.ollamaUrl} onChoose={chooseModel} onClose={() => setModelPanelOpen(false)} />
+      )}
       {settingsOpen && <SettingsPanel settings={llmSettings} onSave={saveLlm} onClose={() => setSettingsOpen(false)} />}
 
       <nav className="mt-3 flex shrink-0 flex-wrap gap-1.5">
@@ -337,12 +366,15 @@ const KNOWN_MODELS = [
 ] as const;
 
 // 로컬 Ollama에 설치된 모델을 보여주고 고르게 하거나, 카탈로그/직접 입력한 이름으로 새 모델을 받게 하는 패널
+
 function ModelPanel({
   current,
+  ollamaUrl,
   onChoose,
   onClose,
 }: {
   current: string;
+  ollamaUrl: string;
   onChoose: (name: string) => void;
   onClose: () => void;
 }) {
@@ -351,17 +383,20 @@ function ModelPanel({
   const [error, setError] = useState("");
   const [pulling, setPulling] = useState<Record<string, number>>({}); // 모델 이름 -> 다운로드 진행률(0~100)
   const [customName, setCustomName] = useState("");
+  const url = ollamaUrl || "http://localhost:11434";
 
+  // 이 패널이 서버(/api/models)를 거치지 않고 이 브라우저에서 Ollama로 직접 붙는 이유는 lib/llm.ts 상단 주석 참고 —
+  // 배포된 사이트에서도 "로컬"이 각 사용자 자신의 컴퓨터가 되게 하려면 서버가 아니라 브라우저가 호출해야 함
   const refresh = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/models");
+      const res = await fetch(`${url}/api/tags`);
+      if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "모델 목록을 가져오지 못했습니다");
       setInstalled(data.models ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(e instanceof TypeError ? ollamaConnectHint(url) : e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -369,7 +404,8 @@ function ModelPanel({
 
   useEffect(() => {
     refresh();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url]);
 
   const isInstalled = (name: string) => installed.some((m) => m.name === name || m.name.startsWith(`${name}:`));
 
@@ -378,15 +414,17 @@ function ModelPanel({
     setPulling((p) => ({ ...p, [name]: 0 }));
     setError("");
     try {
-      const res = await fetch("/api/models", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "다운로드를 시작하지 못했습니다");
+      let res: Response;
+      try {
+        res = await fetch(`${url}/api/pull`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: name, stream: true }),
+        });
+      } catch {
+        throw new Error(ollamaConnectHint(url));
       }
+      if (!res.ok || !res.body) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
@@ -569,7 +607,11 @@ function SettingsPanel({
                 value={draft.ollamaUrl}
                 onChange={(e) => set("ollamaUrl", e.target.value)}
               />
-              <p className="mt-1 text-xs text-gray-400">어떤 모델을 쓸지는 상단 헤더의 &quot;모델&quot; 버튼에서 고르거나 받습니다.</p>
+              <p className="mt-1 text-xs text-gray-400">
+                이 주소로는 항상 <b>이 브라우저를 보고 있는 사람의 컴퓨터</b>가 직접 접속합니다(사이트가 배포돼 있어도 마찬가지) — 그러니 보통은
+                기본값 그대로 두면 됩니다. Ollama에서 이 사이트 주소를 막고 있다면(CORS) <code>OLLAMA_ORIGINS</code> 환경변수로 허용해야 합니다.
+                어떤 모델을 쓸지는 상단 헤더의 &quot;모델&quot; 버튼에서 고르거나 받습니다.
+              </p>
             </div>
           )}
 
@@ -1866,27 +1908,21 @@ function InterviewTab({ project, update, model, llm }: TabProps & { model: strin
           return g ? { name: g.name, score: r.score, personaAware: r.personaAware } : null;
         })
         .filter((x): x is { name: string; score: number; personaAware: boolean } => !!x);
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          world: project.world,
-          persona,
-          groups,
-          relations,
-          groupRelations,
-          facts: project.facts,
-          chapters: project.chapters,
-          currentChapterId: interviewChapterId || null,
-          history: chat,
-          strength,
-          userMessage: text,
-          model: model || undefined,
-          llm,
-        }),
+      const data = await postAI("/api/chat", {
+        world: project.world,
+        persona,
+        groups,
+        relations,
+        groupRelations,
+        facts: project.facts,
+        chapters: project.chapters,
+        currentChapterId: interviewChapterId || null,
+        history: chat,
+        strength,
+        userMessage: text,
+        model: model || undefined,
+        llm,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "요청 실패");
       update((p) => {
         (p.chats[personaId] ??= []).push({ role: "char", text: data.dialogue, inner: data.inner });
         for (const s of data.proposed_settings ?? []) p.pending.push({ id: uid(), personaId, text: s });
@@ -2180,13 +2216,7 @@ function StoryTab({
     setOptions([]);
     setLoading("suggest");
     try {
-      const res = await fetch("/api/story", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "suggest", ...payload() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "요청 실패");
+      const data = await postAI("/api/story", { mode: "suggest", ...payload() });
       setOptions(data.options ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -2201,13 +2231,8 @@ function StoryTab({
     setChecking(true);
     setConflicts([]);
     try {
-      const res = await fetch("/api/story", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "check", ...payload(), newText }),
-      });
-      const data = await res.json();
-      if (res.ok) setConflicts(data.issues ?? []);
+      const data = await postAI("/api/story", { mode: "check", ...payload(), newText });
+      setConflicts(data.issues ?? []);
     } catch {
       // 무시
     } finally {
@@ -2232,13 +2257,7 @@ function StoryTab({
       p.storyCurrentId = directionId;
     });
     try {
-      const res = await fetch("/api/story", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "write", ...payload(), direction: text }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "요청 실패");
+      const data = await postAI("/api/story", { mode: "write", ...payload(), direction: text });
       update((p) => {
         const storyId = uid();
         p.story.push({ id: storyId, parentId: directionId, role: "story", text: data.text, chapterId });

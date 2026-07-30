@@ -12,7 +12,7 @@ import {
   type ViewpointMode,
   type World,
 } from "@/lib/store";
-import { callLLM, llmConnectErrorMessage } from "@/lib/llm";
+import { buildOllamaRequest, callLLM, isOllamaProvider, llmConnectErrorMessage } from "@/lib/llm";
 
 // 서술자 역할 소개 — 시점에 따라 "전지적 작가다"라는 기존 문구를 그대로 못 쓰므로 모드별로 다르게 소개한다
 function narratorRoleLabel(mode: ViewpointMode): string {
@@ -212,6 +212,16 @@ export async function POST(req: Request) {
   const vpRole = narratorRoleLabel(vpMode);
   const vpInstruction = viewpointInstruction(viewpoint, personas);
 
+  // 로컬 Ollama는 서버가 대신 호출하지 않는다 — 배포 환경에선 그 "localhost"가 서버 자신을 가리켜 각 사용자의
+  // 컴퓨터와 무관해지므로, 요청만 조립해 돌려주고 실제 호출은 항상 사용자의 브라우저가 직접 한다(lib/llm.ts 참고)
+  const respond = async (system: string, schema: object, temperature: number) => {
+    if (isOllamaProvider(llm)) {
+      return NextResponse.json({ __ollamaRelay: buildOllamaRequest(llm, model, system, [], schema, temperature) });
+    }
+    const data = await callLLM(llm, system, [], schema, temperature);
+    return NextResponse.json(data);
+  };
+
   try {
     if (mode === "check") {
       const viewpointCheckItem =
@@ -238,8 +248,7 @@ ${storyBlock}
 ${newText || "(없음)"}
 
 반드시 JSON으로만 답한다: issues(문제점을 한 문장씩 구체적으로 설명한 문자열 배열, 없으면 빈 배열). 모든 내용은 한국어로 쓴다.`;
-      const data = await callLLM(llm, model, system, [], CHECK_SCHEMA, 0.3);
-      return NextResponse.json(data);
+      return await respond(system, CHECK_SCHEMA, 0.3);
     } else if (mode === "suggest") {
       const system = `너는 ${vpRole}다. 아래 설정을 참고해 다음에 일어날 수 있는, 서로 다른 방향의 전개를 3가지 제안하라.
 각 제안은 1~2문장으로 짧게, 서로 겹치지 않게, 등장인물의 성격·관계·세계관 규칙에 맞아야 한다. 아직 이야기가 없다면 이야기를 시작할 상황을 3가지 제안하라.
@@ -250,8 +259,7 @@ ${context}
 ${storyBlock}
 
 반드시 JSON으로만 답한다: options(서로 다른 전개 방향 3개로 이루어진 문자열 배열). 모든 내용은 한국어로 쓴다.`;
-      const data = await callLLM(llm, model, system, [], SUGGEST_SCHEMA, 0.9);
-      return NextResponse.json(data);
+      return await respond(system, SUGGEST_SCHEMA, 0.9);
     } else {
       const system = `너는 ${vpRole}다. 아래 설정을 참고해 이야기를 소설체로 이어 써라.
 등장인물의 대사·행동·심리 묘사를 생생하게 포함하고, 각 인물의 성격·가치관·말투·서로의 관계·세계관 규칙에서 벗어나지 마라. 3~6문단 분량으로 써라.
@@ -265,8 +273,7 @@ ${storyBlock}
 ${direction}
 
 반드시 JSON으로만 답한다: text(소설체 본문 하나의 문자열). 모든 내용은 한국어로 쓴다.`;
-      const data = await callLLM(llm, model, system, [], WRITE_SCHEMA, 0.85);
-      return NextResponse.json(data);
+      return await respond(system, WRITE_SCHEMA, 0.85);
     }
   } catch (e) {
     const msg = e instanceof TypeError ? llmConnectErrorMessage(llm) : e instanceof Error ? e.message : String(e);

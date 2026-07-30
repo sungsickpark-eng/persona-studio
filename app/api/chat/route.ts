@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isRevealed, relationLabel, type Chapter, type Fact, type LLMSettings, type Msg, type Persona, type World } from "@/lib/store";
-import { callLLM, llmConnectErrorMessage } from "@/lib/llm";
+import { buildOllamaRequest, callLLM, isOllamaProvider, llmConnectErrorMessage } from "@/lib/llm";
 
 const STRENGTH: Record<number, string> = {
   1: "설정을 참고만 하되 자유롭게 브레인스토밍을 도와도 된다.",
@@ -191,8 +191,14 @@ export async function POST(req: Request) {
     { role: "user", content: userMessage },
   ];
 
+  // 로컬 Ollama는 서버가 대신 호출하지 않는다 — 배포 환경에선 그 "localhost"가 서버 자신을 가리켜 각 사용자의
+  // 컴퓨터와 무관해지므로, 요청만 조립해 돌려주고 실제 호출은 항상 사용자의 브라우저가 직접 한다(lib/llm.ts 참고)
+  if (isOllamaProvider(llm)) {
+    return NextResponse.json({ __ollamaRelay: buildOllamaRequest(llm, model, system, messages, SCHEMA, 0.8) });
+  }
+
   try {
-    const data = await callLLM(llm, model, system, messages, SCHEMA, 0.8);
+    const data = await callLLM(llm, system, messages, SCHEMA, 0.8);
     return NextResponse.json(data);
   } catch (e) {
     const msg = e instanceof TypeError ? llmConnectErrorMessage(llm) : e instanceof Error ? e.message : String(e);

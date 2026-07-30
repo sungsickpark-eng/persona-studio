@@ -43,9 +43,12 @@ import RelationshipGraph from "./RelationshipGraph";
 const TABS = ["세계관", "사실·비밀", "캐릭터", "집단", "관계", "인터뷰", "떡밥", "승인함", "삭제됨"] as const;
 
 // Ollama에 연결이 안 될 때(fetch 자체가 실패)의 공통 안내 — 배포된 사이트에서는 이 브라우저가 자신의 Ollama로
-// 직접 접속하는 구조라, Ollama 쪽에서 이 사이트 주소를 허용(OLLAMA_ORIGINS)하지 않았으면 CORS로 막힘
-const ollamaConnectHint = (url: string) =>
-  `이 브라우저에서 Ollama(${url})에 연결할 수 없습니다. 이 컴퓨터에서 'ollama serve'가 실행 중인지, 이 사이트 주소가 Ollama에 허용돼 있는지(OLLAMA_ORIGINS 환경변수) 확인하세요.`;
+// 직접 접속하는 구조라, Ollama 쪽에서 이 사이트 주소를 허용(OLLAMA_ORIGINS)하지 않았으면 CORS로 막힘. 매번 다시 찾아보지
+// 않도록 지금 이 사이트의 실제 주소를 넣은, 그대로 터미널에 복붙 가능한 명령까지 메시지에 포함시킨다
+const ollamaConnectHint = (url: string) => {
+  const origin = typeof window !== "undefined" ? window.location.origin : "이 사이트 주소";
+  return `이 브라우저에서 Ollama(${url})에 연결할 수 없습니다. 이 컴퓨터에서 'ollama serve'가 실행 중인지 확인하고, 이 사이트가 배포된 주소에서 접속 중이라면(localhost가 아니라면) Ollama가 그 주소를 CORS로 막고 있을 수 있습니다 — 터미널에서 Ollama를 껐다가 아래 명령으로 다시 실행하세요:\n\nOLLAMA_ORIGINS=${origin} ollama serve`;
+};
 
 // /api/chat, /api/story 공용 호출기. provider가 로컬 LLM(Ollama)이면 서버가 요청만 조립해 `{ __ollamaRelay }`로 돌려주고
 // (Vercel 같은 배포 환경에서 "localhost"가 서버 자신을 가리키는 문제 때문 — lib/llm.ts 상단 주석 참고), 이 함수가 그걸 받아
@@ -468,7 +471,7 @@ function ModelPanel({
         </div>
         <div className="space-y-4 overflow-y-auto p-5 text-sm">
           <p className="text-gray-500">로컬 Ollama에 설치된 오픈소스 모델 중 골라 쓰거나, 아직 없는 모델은 받아서 바로 쓸 수 있습니다.</p>
-          {error && <p className="text-red-500">오류: {error}</p>}
+          {error && <p className="whitespace-pre-wrap text-red-500">오류: {error}</p>}
 
           <div>
             <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">설치된 모델</p>
@@ -563,6 +566,7 @@ function SettingsPanel({
 }) {
   const [draft, setDraft] = useState(settings);
   const set = <K extends keyof LLMSettings>(key: K, value: LLMSettings[K]) => setDraft((d) => ({ ...d, [key]: value }));
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" onClick={onClose}>
@@ -609,9 +613,18 @@ function SettingsPanel({
               />
               <p className="mt-1 text-xs text-gray-400">
                 이 주소로는 항상 <b>이 브라우저를 보고 있는 사람의 컴퓨터</b>가 직접 접속합니다(사이트가 배포돼 있어도 마찬가지) — 그러니 보통은
-                기본값 그대로 두면 됩니다. Ollama에서 이 사이트 주소를 막고 있다면(CORS) <code>OLLAMA_ORIGINS</code> 환경변수로 허용해야 합니다.
-                어떤 모델을 쓸지는 상단 헤더의 &quot;모델&quot; 버튼에서 고르거나 받습니다.
+                기본값 그대로 두면 됩니다. 어떤 모델을 쓸지는 상단 헤더의 &quot;모델&quot; 버튼에서 고르거나 받습니다.
               </p>
+              {origin && !origin.startsWith("http://localhost") && (
+                <p className="mt-1 text-xs text-gray-400">
+                  지금 이 사이트가 배포된 주소({origin})에서 접속 중이라, Ollama가 기본적으로 이 주소를 막습니다(CORS). 그 컴퓨터의
+                  터미널에서 Ollama를 껐다가 아래 명령으로 다시 실행해야 연결됩니다:
+                  <br />
+                  <code className="mt-0.5 block break-all rounded bg-gray-100 px-1.5 py-1 dark:bg-gray-900">
+                    OLLAMA_ORIGINS={origin} ollama serve
+                  </code>
+                </p>
+              )}
             </div>
           )}
 
@@ -1984,7 +1997,7 @@ function InterviewTab({ project, update, model, llm }: TabProps & { model: strin
           <MsgView key={i} m={m} name={persona.name} image={persona.image} imagePosition={persona.imagePosition} />
         ))}
         {loading && <p className="text-sm text-gray-400">{persona.name}이(가) 생각 중…</p>}
-        {error && <p className="text-sm text-red-500">오류: {error}</p>}
+        {error && <p className="whitespace-pre-wrap text-sm text-red-500">오류: {error}</p>}
         <div ref={bottomRef} />
       </div>
 
@@ -2511,7 +2524,7 @@ function StoryTab({
         </div>
       )}
 
-      {error && <p className="mt-1 shrink-0 text-xs text-red-500">오류: {error}</p>}
+      {error && <p className="mt-1 shrink-0 whitespace-pre-wrap text-xs text-red-500">오류: {error}</p>}
 
       {options.length > 0 && (
         <div className="mt-2 flex shrink-0 flex-wrap gap-1.5">

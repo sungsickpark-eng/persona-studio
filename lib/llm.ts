@@ -5,6 +5,18 @@ import { DEFAULT_LLM_SETTINGS, type LLMSettings } from "@/lib/store";
 
 const ENV_OLLAMA_URL = process.env.OLLAMA_URL ?? "http://localhost:11434";
 const ENV_OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "gemma4:latest";
+// Vercel(과 그 외 원격 서버)에서 이 API 라우트를 실행 중이면, "로컬 LLM 서버 주소"의 localhost는 사용자의 컴퓨터가 아니라
+// 그 원격 서버 자신을 가리키게 되어 절대 연결될 수 없다 — 흔한 오해라 원인을 바로 설명해주는 전용 에러를 던진다
+const IS_REMOTE_HOST = !!process.env.VERCEL;
+const isLoopbackUrl = (url: string) => {
+  try {
+    return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};
+const REMOTE_OLLAMA_HINT =
+  "Vercel처럼 원격 서버에 배포된 상태에서는 이 컴퓨터의 localhost에 떠 있는 Ollama에 접속할 수 없습니다(배포된 서버와 이 컴퓨터는 서로 다른 기기입니다). 설정에서 OpenAI/Gemini/Claude 같은 클라우드 AI를 선택하거나, ngrok·Cloudflare Tunnel 등으로 Ollama를 외부에 공개한 뒤 그 공개 주소를 로컬 LLM 서버 주소에 입력하세요.";
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
@@ -38,8 +50,11 @@ export function llmConnectErrorMessage(llm: LLMSettings | undefined): string {
       return `Gemini API에 연결할 수 없습니다 (${settings.geminiUrl || DEFAULT_LLM_SETTINGS.geminiUrl}). 인터넷 연결과 설정의 API 주소·키를 확인하세요.`;
     case "claude":
       return `Claude API에 연결할 수 없습니다 (${settings.claudeUrl || DEFAULT_LLM_SETTINGS.claudeUrl}). 인터넷 연결과 설정의 API 주소·키를 확인하세요.`;
-    default:
-      return `Ollama에 연결할 수 없습니다 (${settings.ollamaUrl || ENV_OLLAMA_URL}). 'ollama serve'가 실행 중인지 확인하세요.`;
+    default: {
+      const url = settings.ollamaUrl || ENV_OLLAMA_URL;
+      if (IS_REMOTE_HOST && isLoopbackUrl(url)) return REMOTE_OLLAMA_HINT;
+      return `Ollama에 연결할 수 없습니다 (${url}). 'ollama serve'가 실행 중인지 확인하세요.`;
+    }
   }
 }
 
@@ -53,6 +68,8 @@ async function callOllama(
 ) {
   const url = settings.ollamaUrl || ENV_OLLAMA_URL;
   const model = ollamaModel || ENV_OLLAMA_MODEL;
+  // 연결을 시도했다가 타임아웃으로 실패하길 기다리지 않고, 애초에 연결될 수 없는 조합이면 바로 이유를 알려준다
+  if (IS_REMOTE_HOST && isLoopbackUrl(url)) throw new Error(REMOTE_OLLAMA_HINT);
   const res = await fetch(`${url}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

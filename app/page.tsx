@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { loadProjects, newProject, saveProjects, type Project } from "@/lib/store";
 import { importObsidianVault } from "@/lib/import";
+import { saveProjectToDir } from "@/lib/export";
+import { getStoredRootHandle, hasWritePermission, pickRootFolder, reconnectRootFolder } from "@/lib/rootFolder";
+import type { FSDirHandle } from "@/lib/fs-types";
 
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -10,14 +13,43 @@ export default function Home() {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
 
+  // 연결된 저장 폴더 — 있으면 새 프로젝트를 만들 때 그 안에 폴더가 자동 생기고, 이야기가 바뀔 때마다 자동 저장됨
+  const [rootHandle, setRootHandle] = useState<FSDirHandle | null>(null);
+  const [rootPermission, setRootPermission] = useState<"granted" | "lost" | "unknown">("unknown");
+
   useEffect(() => setProjects(loadProjects()), []);
+  useEffect(() => {
+    getStoredRootHandle().then(async (h) => {
+      if (!h) return;
+      setRootHandle(h);
+      setRootPermission((await hasWritePermission(h)) ? "granted" : "lost");
+    });
+  }, []);
+
+  const connectRoot = async () => {
+    try {
+      const h = await pickRootFolder();
+      setRootHandle(h);
+      setRootPermission("granted");
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return; // 폴더 선택 취소
+      alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const reconnectRoot = async () => {
+    if (!rootHandle) return;
+    setRootPermission((await reconnectRootFolder(rootHandle)) ? "granted" : "lost");
+  };
 
   const create = () => {
     if (!name.trim()) return;
-    const next = [...projects, newProject(name.trim())];
+    const created = newProject(name.trim());
+    const next = [...projects, created];
     saveProjects(next);
     setProjects(next);
     setName("");
+    if (rootHandle && rootPermission === "granted") saveProjectToDir(rootHandle, created).catch(() => {});
   };
 
   const importFolder = async () => {
@@ -82,6 +114,27 @@ export default function Home() {
         <span className="text-xs text-gray-400">Obsidian 내보내기 폴더를 골라 그 안의 프로젝트들을 복원합니다.</span>
       </div>
       {importMsg && <p className="mt-1 text-xs text-gray-500">{importMsg}</p>}
+
+      <p className="mt-1 text-xs text-gray-400">
+        또는 스토리를 저장할 폴더를 선택해 주세요 — 그 폴더가 이야기의 루트 폴더가 되어, 새 프로젝트를 만들면 그 안에
+        프로젝트 이름의 폴더가 자동으로 생기고 이야기가 바뀔 때마다 자동으로 저장됩니다.
+      </p>
+      <div className="mt-1.5 flex items-center gap-2">
+        <button onClick={connectRoot} className="rounded border px-3 py-1.5 text-sm">
+          {rootHandle ? "저장 폴더 변경" : "저장 폴더 선택"}
+        </button>
+        {rootHandle && rootPermission === "granted" && (
+          <span className="text-xs text-emerald-600 dark:text-emerald-400">연결됨: {rootHandle.name}</span>
+        )}
+        {rootHandle && rootPermission === "lost" && (
+          <span className="text-xs text-amber-600 dark:text-amber-400">
+            {rootHandle.name} 연결이 끊어졌어요 —{" "}
+            <button onClick={reconnectRoot} className="underline">
+              다시 연결
+            </button>
+          </span>
+        )}
+      </div>
       <ul className="mt-6 space-y-2">
         {projects.map((p) => (
           <li key={p.id} className="flex items-center justify-between rounded border p-3">

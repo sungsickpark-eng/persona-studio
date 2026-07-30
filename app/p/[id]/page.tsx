@@ -37,7 +37,9 @@ import {
   type StoryNode,
   type ViewpointMode,
 } from "@/lib/store";
-import { exportObsidianFiles, exportStoryFile } from "@/lib/export";
+import { saveProjectToDir } from "@/lib/export";
+import { getStoredRootHandle, hasWritePermission, reconnectRootFolder } from "@/lib/rootFolder";
+import type { FSDirHandle } from "@/lib/fs-types";
 import RelationshipGraph from "./RelationshipGraph";
 
 const TABS = ["장르", "세계관", "사실·비밀", "캐릭터", "집단", "관계", "인터뷰", "떡밥", "승인함", "삭제됨"] as const;
@@ -90,6 +92,10 @@ export default function Workspace() {
   // 관계도가 차지하는 세로 비율(나머지는 이야기 쓰기창) — 구분선을 드래그해 조절
   const [graphRatio, setGraphRatio] = useState(0.45);
   const splitRef = useRef<HTMLDivElement>(null);
+  // 연결된 저장 폴더(메인 화면에서 설정) — 있으면 이야기가 바뀔 때마다 그 폴더에 조용히 자동 저장.
+  // folderStatus는 우측 상단 안내 배지용 — "none"이면 애초에 폴더를 안 연결한 것, "lost"면 연결은 해뒀는데 권한이 끊긴 것
+  const rootHandleRef = useRef<FSDirHandle | null>(null);
+  const [folderStatus, setFolderStatus] = useState<"none" | "connected" | "lost">("none");
   // 어떤 로컬 Ollama 모델을 쓸지 — 프로젝트 데이터가 아니라 이 브라우저 전역 설정(모든 프로젝트 공유)
   const [model, setModel] = useState(() => loadSelectedModel());
   const [modelPanelOpen, setModelPanelOpen] = useState(false);
@@ -117,6 +123,13 @@ export default function Workspace() {
   }, [id]);
 
   useEffect(() => {
+    getStoredRootHandle().then(async (h) => {
+      rootHandleRef.current = h;
+      if (h) setFolderStatus((await hasWritePermission(h)) ? "connected" : "lost");
+    });
+  }, []);
+
+  useEffect(() => {
     if (!tab) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setTab(null);
     window.addEventListener("keydown", onKey);
@@ -140,13 +153,25 @@ export default function Workspace() {
     setProject(next);
   };
 
-  const exportObsidian = async () => {
-    try {
-      await exportObsidianFiles(project);
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") return; // 폴더 선택 취소
-      alert(e instanceof Error ? e.message : String(e));
-    }
+  // 이야기가 바뀔 때마다 StoryTab이 호출 — 연결된 저장 폴더가 있고 권한이 살아있으면 조용히 프로젝트 전체를 다시 저장.
+  // 권한이 끊겼거나 폴더 연결이 아예 없으면 알림 없이 그냥 건너뜀(자동 저장이 매번 실패 팝업을 띄우면 방해만 됨).
+  const autosaveStory = () => {
+    const handle = rootHandleRef.current;
+    if (!handle) return;
+    hasWritePermission(handle)
+      .then((ok) => {
+        setFolderStatus(ok ? "connected" : "lost");
+        if (!ok) return;
+        const latest = loadProjects().find((p) => p.id === project.id);
+        return latest && saveProjectToDir(handle, latest);
+      })
+      .catch(() => {});
+  };
+
+  const reconnectFolder = async () => {
+    const handle = rootHandleRef.current;
+    if (!handle) return;
+    setFolderStatus((await reconnectRootFolder(handle)) ? "connected" : "lost");
   };
 
   return (
@@ -157,6 +182,30 @@ export default function Workspace() {
           <h1 className="truncate text-xl font-bold">{project.name}</h1>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {folderStatus === "connected" && (
+            <span
+              title="이야기가 바뀔 때마다 연결된 저장 폴더에 조용히 자동 저장됩니다"
+              className="whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+            >
+              자동 저장 켜짐
+            </span>
+          )}
+          {folderStatus === "lost" && (
+            <span className="whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+              자동 저장 연결 끊김 —{" "}
+              <button onClick={reconnectFolder} className="underline">
+                다시 연결
+              </button>
+            </span>
+          )}
+          {folderStatus === "none" && (
+            <span
+              title="메인 화면에서 저장 폴더를 연결하면 이야기가 바뀔 때마다 자동으로 저장됩니다"
+              className="whitespace-nowrap text-xs text-gray-400"
+            >
+              자동 저장 꺼짐
+            </span>
+          )}
           <button
             onClick={() => setSettingsOpen(true)}
             title="캐릭터 시뮬레이션·이야기 생성에 쓸 AI(로컬 LLM 또는 OpenAI/Gemini/Claude API)를 설정합니다"
@@ -173,13 +222,6 @@ export default function Workspace() {
               모델: {model || "기본값"}
             </button>
           )}
-          <button
-            onClick={exportObsidian}
-            title="폴더를 선택하면 그 안에 프로젝트명 폴더를 만들어 인물·집단 노트를 개별 파일로 저장합니다 (Obsidian 볼트로 바로 사용 가능, Chrome/Edge 전용)"
-            className="whitespace-nowrap rounded border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-900"
-          >
-            Obsidian 내보내기 (폴더)
-          </button>
         </div>
       </header>
 
@@ -240,6 +282,7 @@ export default function Workspace() {
           <StoryTab
             project={project}
             update={update}
+            onStoryChanged={autosaveStory}
             model={model}
             llm={llmSettings}
             jumpNodeId={jumpNodeId}
@@ -2269,12 +2312,19 @@ function InterviewTab({ project, update, model, llm }: TabProps & { model: strin
 
 function StoryTab({
   project,
-  update,
+  update: updateProject,
+  onStoryChanged,
   model,
   llm,
   jumpNodeId,
   onJumped,
-}: TabProps & { model: string; llm: LLMSettings; jumpNodeId: string | null; onJumped: () => void }) {
+}: TabProps & { onStoryChanged: () => void; model: string; llm: LLMSettings; jumpNodeId: string | null; onJumped: () => void }) {
+  // 이 탭 안의 모든 변경은 연결된 저장 폴더로의 자동 저장을 함께 트리거한다(onStoryChanged) — 호출부를 하나하나
+  // 바꾸지 않고 update 자체를 감싸서, 이 탭에서 일어나는 모든 이야기 변경(생성·수정·삭제·되돌리기·순서 변경 등)에 일괄 적용
+  const update = (fn: (p: Project) => void) => {
+    updateProject(fn);
+    onStoryChanged();
+  };
   const [options, setOptions] = useState<string[]>([]);
   const [direction, setDirection] = useState("");
   const [loading, setLoading] = useState<"suggest" | "write" | null>(null);
@@ -2564,15 +2614,6 @@ function StoryTab({
     }
   };
 
-  const exportStory = async () => {
-    try {
-      await exportStoryFile(project);
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") return; // 폴더 선택 취소
-      alert(e instanceof Error ? e.message : String(e));
-    }
-  };
-
   return (
     <div className="flex h-full flex-col gap-3 sm:flex-row">
       <ChapterTree project={project} update={update} selectedChapterId={selectedChapterId} onSelect={setSelectedChapterId} />
@@ -2627,14 +2668,6 @@ function StoryTab({
             )}
           </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <button
-            onClick={exportStory}
-            disabled={activePath.length === 0}
-            title="지금 이어 쓰고 있는 가지를 Obsidian 내보내기와 같은 '프로젝트명/이야기.md' 위치에 저장합니다"
-            className="whitespace-nowrap rounded border px-2.5 py-1 text-xs hover:bg-gray-50 disabled:opacity-40 dark:hover:bg-gray-900"
-          >
-            이야기 내보내기
-          </button>
           <button
             onClick={suggest}
             disabled={!!loading}

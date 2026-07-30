@@ -1,6 +1,7 @@
-// Obsidian 볼트로 내보내기: 캐릭터/집단을 노트별 개별 파일로 만들고 서로 [[위키링크]]로 연결.
-// 압축 없이 사용자가 고른 폴더 안에 프로젝트명 폴더를 만들어 파일을 직접 쓴다 (File System Access API, Chrome/Edge 전용).
+// Obsidian 볼트 구조로 저장: 캐릭터/집단을 노트별 개별 파일로 만들고 서로 [[위키링크]]로 연결.
+// 연결된 저장 폴더(rootFolder.ts) 아래에 프로젝트명 폴더를 만들어 파일을 직접 쓴다 (File System Access API, Chrome/Edge 전용).
 import { chapterTreeOrder, groupTreeOrder, storyActivePath, type Project, type StoryNode } from "./store";
+import type { FSDirHandle } from "./fs-types";
 
 export const safe = (name: string) => name.replace(/[\\/:*?"<>|#^[\]]/g, " ").trim() || "무제";
 
@@ -24,7 +25,7 @@ export type ExportEntry =
   | { dirs: string[]; name: string; content: string }
   | { dirs: string[]; name: string; base64: string };
 
-// 파일시스템에 손대지 않는 순수 함수 — 실제 쓰기(exportObsidianFiles)와 회귀 테스트 양쪽에서 재사용
+// 파일시스템에 손대지 않는 순수 함수 — 실제 쓰기(saveProjectToDir)와 회귀 테스트 양쪽에서 재사용
 export function buildExportEntries(p: Project): ExportEntry[] {
   const entries: ExportEntry[] = [];
   const root = safe(p.name);
@@ -218,21 +219,8 @@ export function buildStoryMarkdown(p: Project, path: StoryNode[]): string {
   return [`# ${p.name} — 이야기`, "", blocks.join("\n\n---\n\n")].join("\n");
 }
 
-// File System Access API의 필요한 부분만 최소로 선언 — TS 표준 DOM 타입에 없어도 동작하도록
-type FSDirHandle = {
-  getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<FSDirHandle>;
-  getFileHandle(name: string, options?: { create?: boolean }): Promise<FSFileHandle>;
-};
-type FSFileHandle = { createWritable(): Promise<FSWritable> };
-type FSWritable = { write(data: string | Uint8Array): Promise<void>; close(): Promise<void> };
-
-// 폴더 선택 창을 띄운 뒤, 넘겨받은 항목들을 그 폴더 아래에 실제 파일로 쓴다.
-// 사용자가 선택을 취소하면 AbortError가 그대로 던져진다 (호출부에서 무시 처리).
-async function writeEntriesToPickedFolder(entries: ExportEntry[]): Promise<void> {
-  const picker = (window as unknown as { showDirectoryPicker?: () => Promise<FSDirHandle> }).showDirectoryPicker;
-  if (!picker) throw new Error("이 브라우저는 폴더로 내보내기를 지원하지 않습니다. Chrome 또는 Edge를 사용하세요.");
-  const rootHandle = await picker();
-
+// 이미 얻어둔 폴더 핸들(연결된 저장 폴더의 루트) 아래에 항목들을 실제 파일로 쓴다 — 디렉터리는 필요할 때마다 자동 생성
+async function writeEntriesToDir(rootHandle: FSDirHandle, entries: ExportEntry[]): Promise<void> {
   const dirCache = new Map<string, FSDirHandle>();
   const getDir = async (dirs: string[]) => {
     const key = dirs.join("/");
@@ -257,14 +245,9 @@ async function writeEntriesToPickedFolder(entries: ExportEntry[]): Promise<void>
   }
 }
 
-// 폴더를 골라 그 안에 "프로젝트명" 폴더를 만들고 인물·집단·이야기 노트를 개별 파일로 쓴다.
-export async function exportObsidianFiles(p: Project): Promise<void> {
-  await writeEntriesToPickedFolder(buildExportEntries(p));
-}
-
-// 이야기만 따로 내보낼 때도 같은 폴더 구조("프로젝트명/이야기.md")를 쓴다 — Obsidian 폴더 내보내기와 위치가 항상 일치함
-export async function exportStoryFile(p: Project): Promise<void> {
-  const root = safe(p.name);
-  const activeStory = storyActivePath(p.story, p.storyCurrentId);
-  await writeEntriesToPickedFolder([{ dirs: [root], name: "이야기.md", content: buildStoryMarkdown(p, activeStory) }]);
+// 연결된 저장 폴더(rootHandle) 아래에 프로젝트를 통째로 저장한다 — entries의 dirs가 이미 "프로젝트명"으로
+// 시작하므로 rootHandle은 여러 프로젝트를 담는 최상위 폴더 그대로 넘기면 됨(그 안에 프로젝트명 폴더가 자동 생성됨).
+// 새 프로젝트 생성 시의 최초 저장과, 이야기가 바뀔 때마다의 자동 저장이 전부 이 함수 하나로 수렴한다.
+export async function saveProjectToDir(rootHandle: FSDirHandle, p: Project): Promise<void> {
+  await writeEntriesToDir(rootHandle, buildExportEntries(p));
 }

@@ -26,7 +26,7 @@
 
 - Node.js 20 이상
 - 다음 중 최소 하나
-  - **로컬 LLM**: [Ollama](https://ollama.com) 설치 후 원하는 모델 하나 이상 받아두기 (예: `ollama pull gemma3`)
+  - **로컬 LLM**: [Ollama](https://ollama.com) 설치 후 원하는 모델 하나 이상 받아두기 (기본값: `ollama pull gemma4`)
   - **클라우드 API 키**: OpenAI, Google Gemini, Anthropic Claude 중 사용할 서비스의 API 키
 
 ### 의존성 설치

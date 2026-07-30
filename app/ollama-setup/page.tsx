@@ -60,9 +60,10 @@ export default function OllamaSetupPage() {
         </li>
       </ul>
       <p className="mt-2 text-gray-600 dark:text-gray-300">
-        설치가 끝나면 쓸 모델을 하나 이상 받아야 합니다(처음 한 번만, 용량이 커서 시간이 좀 걸릴 수 있습니다):
+        설치가 끝나면 쓸 모델을 하나 이상 받아야 합니다(처음 한 번만, 용량이 커서 시간이 좀 걸릴 수 있습니다). 이 사이트의
+        기본 모델은 <Code>gemma4</Code>입니다:
       </p>
-      <Block>ollama pull gemma3</Block>
+      <Block>ollama pull gemma4</Block>
       <p className="mt-1 text-gray-600 dark:text-gray-300">
         받은 모델은 사이트 헤더의 &quot;모델&quot; 버튼에서 골라 쓰면 됩니다. 다른 모델을 원하면 이름만 바꿔서 같은 명령으로
         받을 수 있습니다(예: <Code>llama3.1</Code>, <Code>qwen2.5</Code>).

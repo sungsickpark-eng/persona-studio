@@ -357,6 +357,7 @@ type InstalledModel = { name: string; parameter_size?: string; size?: number };
 
 // 오브시디언/허깅페이스 등에서 흔히 쓰이는, 알려진 오픈소스(오픈 웨이트) 모델 카탈로그 — 설치 안 돼 있으면 다운로드 버튼을 보여줌
 const KNOWN_MODELS = [
+  { name: "gemma4", label: "Gemma 4 (Google) — 기본값" },
   { name: "llama3.1", label: "Llama 3.1 (Meta)" },
   { name: "llama3.2", label: "Llama 3.2 (Meta, 경량)" },
   { name: "gemma2", label: "Gemma 2 (Google)" },

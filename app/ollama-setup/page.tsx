@@ -34,14 +34,48 @@ export default function OllamaSetupPage() {
         직접 이 컴퓨터의 Ollama로 접속합니다 — 그래서 사이트가 배포돼 있어도 방문자마다 각자 자기 컴퓨터의 모델을 씁니다.
       </p>
 
-      <h2 className="mt-6 text-lg font-semibold">왜 별도 설정이 필요한가요</h2>
+      <h2 className="mt-6 text-lg font-semibold">1. Ollama 설치</h2>
+      <p className="mt-1 text-gray-600 dark:text-gray-300">
+        이미 Ollama가 설치돼 있고 모델도 받아뒀다면 이 단계는 건너뛰고 아래로 내려가세요.
+      </p>
+      <ul className="mt-2 space-y-2 text-gray-600 dark:text-gray-300">
+        <li>
+          <b>macOS</b> —{" "}
+          <a href="https://ollama.com/download" target="_blank" rel="noreferrer" className="text-fuchsia-600 hover:underline dark:text-fuchsia-400">
+            ollama.com/download
+          </a>
+          에서 내려받아 설치하거나, Homebrew가 있다면:
+          <Block>brew install ollama</Block>
+        </li>
+        <li>
+          <b>Windows</b> —{" "}
+          <a href="https://ollama.com/download" target="_blank" rel="noreferrer" className="text-fuchsia-600 hover:underline dark:text-fuchsia-400">
+            ollama.com/download
+          </a>
+          에서 설치 파일을 내려받아 실행합니다.
+        </li>
+        <li>
+          <b>Linux</b> — 터미널에서:
+          <Block>curl -fsSL https://ollama.com/install.sh | sh</Block>
+        </li>
+      </ul>
+      <p className="mt-2 text-gray-600 dark:text-gray-300">
+        설치가 끝나면 쓸 모델을 하나 이상 받아야 합니다(처음 한 번만, 용량이 커서 시간이 좀 걸릴 수 있습니다):
+      </p>
+      <Block>ollama pull gemma3</Block>
+      <p className="mt-1 text-gray-600 dark:text-gray-300">
+        받은 모델은 사이트 헤더의 &quot;모델&quot; 버튼에서 골라 쓰면 됩니다. 다른 모델을 원하면 이름만 바꿔서 같은 명령으로
+        받을 수 있습니다(예: <Code>llama3.1</Code>, <Code>qwen2.5</Code>).
+      </p>
+
+      <h2 className="mt-6 text-lg font-semibold">2. 왜 별도 설정이 필요한가요</h2>
       <p className="mt-1 text-gray-600 dark:text-gray-300">
         Ollama는 보안을 위해 미리 허용해두지 않은 웹사이트가 브라우저를 통해 접속하는 걸 기본적으로 차단합니다(CORS). 그래서
         이 사이트(<Code>{site}</Code>)를 Ollama에 허용해줘야 연결됩니다. 이 설정은 사이트가 아니라{" "}
         <b>Ollama를 실행하는 각자의 컴퓨터</b>에서 해야 합니다.
       </p>
 
-      <h2 className="mt-6 text-lg font-semibold">설정 방법 (macOS, 메뉴바 앱 기준 — 추천)</h2>
+      <h2 className="mt-6 text-lg font-semibold">3. 이 사이트 허용하기 (macOS, 메뉴바 앱 기준 — 추천)</h2>
       <ol className="mt-1 list-decimal space-y-3 pl-5 text-gray-600 dark:text-gray-300">
         <li>
           터미널(Terminal.app)을 열고 아래 명령으로 이 사이트를 허용 목록에 등록합니다.

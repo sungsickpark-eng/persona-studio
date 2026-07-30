@@ -553,6 +553,29 @@ const PROVIDER_LABEL: Record<LLMSettings["provider"], string> = {
 // 1인칭 두 모드는 "누구의 1인칭인지" 서술자 캐릭터 지정이 별도로 필요함 (라벨 자체는 lib/store.ts의 VIEWPOINT_LABEL — 서버 검사 프롬프트와 공유)
 const VIEWPOINT_NEEDS_NARRATOR = (mode: ViewpointMode) => mode === "firstProtagonist" || mode === "firstObserver";
 
+// 터미널 명령처럼 그대로 타이핑하기 번거로운 텍스트 옆에 붙여, 클릭 한 번으로 클립보드에 복사하는 작은 버튼
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      alert("클립보드 복사에 실패했습니다. 직접 선택해서 복사해주세요.");
+    }
+  };
+  return (
+    <button
+      onClick={copy}
+      title="클립보드에 복사"
+      className="shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+    >
+      {copied ? "복사됨 ✓" : "복사"}
+    </button>
+  );
+}
+
 // AI 연동 설정 도구 — 로컬 LLM(Ollama) 서버 주소, Google Gemini/OpenAI/Claude의 API 주소·키를 입력하고
 // 캐릭터 시뮬레이션·이야기 생성에 어떤 AI를 쓸지 고르는 패널. 로컬 LLM의 "어떤 모델"은 기존 ModelPanel이 그대로 담당
 function SettingsPanel({
@@ -624,14 +647,18 @@ function SettingsPanel({
                 기본값 그대로 두면 됩니다. 어떤 모델을 쓸지는 상단 헤더의 &quot;모델&quot; 버튼에서 고르거나 받습니다.
               </p>
               {origin && !origin.startsWith("http://localhost") && (
-                <p className="mt-1 text-xs text-gray-400">
-                  지금 이 사이트가 배포된 주소({origin})에서 접속 중이라, Ollama가 기본적으로 이 주소를 막습니다(CORS). 그 컴퓨터의
-                  터미널에서 Ollama를 껐다가 아래 명령으로 다시 실행해야 연결됩니다:
-                  <br />
-                  <code className="mt-0.5 block break-all rounded bg-gray-100 px-1.5 py-1 dark:bg-gray-900">
-                    OLLAMA_ORIGINS={origin} ollama serve
-                  </code>
-                </p>
+                <div className="mt-1 text-xs text-gray-400">
+                  <p>
+                    지금 이 사이트가 배포된 주소({origin})에서 접속 중이라, Ollama가 기본적으로 이 주소를 막습니다(CORS). 그
+                    컴퓨터의 터미널에서 Ollama를 껐다가 아래 명령으로 다시 실행해야 연결됩니다:
+                  </p>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <code className="block flex-1 overflow-x-auto whitespace-nowrap rounded bg-gray-100 px-1.5 py-1 dark:bg-gray-900">
+                      OLLAMA_ORIGINS={origin} ollama serve
+                    </code>
+                    <CopyButton text={`OLLAMA_ORIGINS=${origin} ollama serve`} />
+                  </div>
+                </div>
               )}
               <Link href="/ollama-setup" target="_blank" className="mt-1 inline-block text-xs text-fuchsia-600 hover:underline dark:text-fuchsia-400">
                 자세한 설정 방법·에러 해결 보기 →

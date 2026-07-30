@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import {
+  type Chapter,
+  chapterOrderIndex,
   genreLabel,
   relationLabel,
   type Fact,
@@ -60,6 +62,8 @@ function buildWorldContext(
   personaGroupRelations: PersonaGroupRelation[],
   facts: Fact[],
   foreshadows: Foreshadow[],
+  chapters: Chapter[],
+  currentChapterId: string | null,
 ): string {
   const nameOfPersona = (id: string) => personas.find((p) => p.id === id)?.name ?? "?";
   const nameOfGroup = (id: string) => groups.find((g) => g.id === id)?.name ?? "?";
@@ -72,6 +76,16 @@ function buildWorldContext(
   groupRelations = groupRelations.filter((r) => groupIds.has(r.aId) && groupIds.has(r.bId));
   personaGroupRelations = personaGroupRelations.filter((r) => personaIds.has(r.personaId) && groupIds.has(r.groupId));
 
+  // 지금 쓰는 챕터가 이 캐릭터의 등장 챕터(introChapterId)보다 앞서면 아직 이야기에 등장하면 안 됨.
+  // 둘 중 하나라도 챕터 목록에서 못 찾거나(currentChapterId가 없거나 미분류 등) introChapterId가 비어 있으면
+  // 순서를 비교할 근거가 없으므로 제약을 걸지 않는다(오탐 방지가 우선)
+  const currentIdx = chapterOrderIndex(chapters, currentChapterId);
+  const notYetIntroduced = (per: Persona) => {
+    if (!per.introChapterId || currentIdx === -1) return false;
+    const introIdx = chapterOrderIndex(chapters, per.introChapterId);
+    return introIdx !== -1 && currentIdx < introIdx;
+  };
+
   const personaBlocks =
     personas
       .map((per) => {
@@ -83,7 +97,9 @@ function buildWorldContext(
           .map((f) => f.access[per.id])
           .filter((a): a is { status: "misbelieves"; misbelief: string } => a?.status === "misbelieves")
           .map((a) => a.misbelief);
-        return `- ${per.name} (나이: ${per.age || "미정"}, 직업: ${per.occupation || "미정"})
+        return `- ${per.name} (나이: ${per.age || "미정"}, 직업: ${per.occupation || "미정"})${
+          notYetIntroduced(per) ? " — ⚠ 아직 이야기에 등장하지 않음: 지금 쓰는 지점에서는 이 인물을 등장시키거나 언급하지 마라" : ""
+        }
   외형: ${per.appearance || "미정"}
   성격: ${per.personality || "미정"} / 가치관: ${per.values || "미정"} / 말투: ${per.speech || "미정"}
   배경 서사: ${per.backstory || "미정"}
@@ -215,6 +231,8 @@ export async function POST(req: Request) {
     personaGroupRelations,
     facts,
     foreshadows = [],
+    chapters = [],
+    currentChapterId = null,
     storySoFar,
     direction,
     newText,
@@ -232,6 +250,8 @@ export async function POST(req: Request) {
     personaGroupRelations: PersonaGroupRelation[];
     facts: Fact[];
     foreshadows?: Foreshadow[];
+    chapters?: Chapter[];
+    currentChapterId?: string | null; // 지금 이어 쓰는(또는 방금 검사할 내용이 태그된) 챕터 — 캐릭터 등장 챕터(introChapterId)와 순서를 비교하는 데 씀
     storySoFar: string;
     direction?: string;
     newText?: string;
@@ -250,6 +270,8 @@ export async function POST(req: Request) {
     personaGroupRelations,
     facts,
     foreshadows,
+    chapters,
+    currentChapterId,
   );
   const unresolvedForeshadows = foreshadows.filter((f) => !f.resolveText);
   const storyBlock = `# 지금까지의 이야기 (새로 추가되기 전)\n${storySoFar || "(아직 없음)"}`;
@@ -282,7 +304,8 @@ ${vpMode === "omniscient" ? "" : `\n이 이야기는 ${vpRole}가 쓰고 있다.
 - 캐릭터가 몰라야 할 사실을 아는 것처럼 나왔거나, 존재를 모르는 인물/집단을 아는 것처럼 나왔는가
 - 캐릭터 간/집단 간 관계 점수·태도와 모순되는 방식으로 상호작용했는가
 - 이미 확립된 사실이나 이전 이야기 내용과 모순되는 내용이 나왔는가
-- 아직 회수되지 않은 떡밥(복선)의 내용과 모순되는 전개가 나왔는가${viewpointCheckItem}
+- 아직 회수되지 않은 떡밥(복선)의 내용과 모순되는 전개가 나왔는가
+- "아직 이야기에 등장하지 않음" 표시가 붙은 인물이 등장하거나 언급됐는가${viewpointCheckItem}
 
 사소한 문체·어투 문제는 지적하지 마라 — 설정과의 실제 충돌만 짚어라. 문제가 없으면 빈 배열을 반환하라.
 

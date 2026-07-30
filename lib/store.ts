@@ -27,6 +27,10 @@ export type Persona = {
   future: string;
   triggers: string;
   notes: string[]; // 승인된 추가 설정만 기록 (버전 이력)
+  createdAt: string; // 이 캐릭터를 도구에서 만든 실제 시각(ISO) — 순수 기록용, 이야기 속 등장 순서와는 무관하므로
+  // 절대 AI 프롬프트에 넣거나 서술 순서 판단에 쓰지 말 것(작가가 나중에 만든 캐릭터가 이야기 맨 처음부터 있었을 수 있음)
+  introChapterId: string | null; // 이 캐릭터가 이야기에 처음 등장하는 챕터 — null이면 처음부터 등장(제약 없음).
+  // 이 챕터보다 앞선 지점을 쓸 때 이 캐릭터가 등장/언급되지 않도록 이야기 쓰기 AI에게 지시하는 데만 쓰임
   image?: string; // 캐릭터 디자인 (압축된 dataURL)
   imageWidth?: number; // 원본(압축 후) 이미지 픽셀 크기 — 정사각형/원형으로 자를 때 위치 계산용
   imageHeight?: number;
@@ -200,6 +204,13 @@ export function chapterTreeOrder(chapters: Chapter[]): { chapter: Chapter; depth
   return out;
 }
 
+// chapterTreeOrder의 순서를 "이야기 진행 순서"로 간주해 챕터의 순번을 매긴다(없는 챕터는 -1).
+// 캐릭터의 등장 챕터(introChapterId)가 지금 쓰는 챕터보다 뒤인지 비교하는 데 씀
+export function chapterOrderIndex(chapters: Chapter[], chapterId: string | null | undefined): number {
+  if (!chapterId) return -1;
+  return chapterTreeOrder(chapters).findIndex(({ chapter }) => chapter.id === chapterId);
+}
+
 // chapterId부터 최상위 막까지 거슬러 올라가 경로를 반환(예: [1막, 1장]) — "지금 쓰는 글이 어디 소속인지"를 한 줄로 보여줄 때 씀
 export function chapterPath(chapters: Chapter[], chapterId: string | null | undefined): Chapter[] {
   if (!chapterId) return [];
@@ -366,6 +377,8 @@ export function loadProjects(): Project[] {
         legacy.past ??= "";
         legacy.present ??= "";
         legacy.future ??= "";
+        legacy.createdAt ??= ""; // 구버전 데이터는 실제 생성 시각을 알 수 없음 — 빈 값이면 UI가 "생성일 미상"으로 표시
+        legacy.introChapterId ??= null;
       }
     }
     return projects;
@@ -494,6 +507,8 @@ export function newPersona(name: string): Persona {
     future: "",
     triggers: "",
     notes: [],
+    createdAt: new Date().toISOString(),
+    introChapterId: null,
   };
 }
 

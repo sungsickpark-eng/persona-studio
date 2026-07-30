@@ -30,9 +30,9 @@ const project: Project = {
     slang: "",
   },
   personas: [
-    { id: "a", name: "민수", age: "", occupation: "", appearance: "", personality: "영희를 경계한다", values: "", speech: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [], image: tinyJpeg },
-    { id: "b", name: "영희", age: "", occupation: "", appearance: "", personality: "", values: "", speech: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [] },
-    { id: "c", name: "탈퇴자", age: "", occupation: "", appearance: "", personality: "", values: "", speech: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [], deleted: true },
+    { id: "a", name: "민수", age: "", occupation: "", appearance: "", personality: "영희를 경계한다", values: "", speech: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [], createdAt: "", introChapterId: null, image: tinyJpeg },
+    { id: "b", name: "영희", age: "", occupation: "", appearance: "", personality: "", values: "", speech: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [], createdAt: "", introChapterId: null },
+    { id: "c", name: "탈퇴자", age: "", occupation: "", appearance: "", personality: "", values: "", speech: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [], createdAt: "", introChapterId: null, deleted: true },
   ],
   groups: [
     { id: "g1", name: "형사팀", description: "민수가 속한 조직", memberIds: ["a"] },

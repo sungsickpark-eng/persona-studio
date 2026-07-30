@@ -1381,6 +1381,32 @@ function PersonasTab({ project, update, focusId }: TabProps & { focusId?: string
               ))}
             </div>
 
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-400">
+              <label className="flex items-center gap-1.5">
+                <span>등장 챕터</span>
+                <select
+                  value={per.introChapterId ?? ""}
+                  onChange={(e) =>
+                    update((p) => {
+                      const t = p.personas.find((x) => x.id === per.id);
+                      if (t) t.introChapterId = e.target.value || null;
+                    })
+                  }
+                  title="이 캐릭터가 이야기에 처음 등장하는 챕터. 지정하면 그 챕터보다 앞선 지점을 쓸 때 이야기 쓰기 AI가 이 캐릭터를 등장시키지 않습니다"
+                  className="rounded border px-1.5 py-0.5 text-xs dark:border-gray-700 dark:bg-gray-900"
+                >
+                  <option value="">처음부터 등장</option>
+                  {chapterTreeOrder(project.chapters).map(({ chapter, depth }) => (
+                    <option key={chapter.id} value={chapter.id}>
+                      {"　".repeat(depth)}
+                      {chapter.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span>생성: {per.createdAt ? formatDateTime(per.createdAt) : "미상"}</span>
+            </div>
+
             <div className="mt-3 flex items-start gap-3">
               {per.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -2358,6 +2384,9 @@ function StoryTab({
     personaGroupRelations: project.personaGroupRelations,
     facts: project.facts,
     foreshadows: project.foreshadows,
+    chapters: project.chapters,
+    // 지금 이어 쓰면 새 내용이 태그될 챕터와 동일한 기준(write()의 chapterId 계산과 맞춰야 캐릭터 등장 챕터 판정이 어긋나지 않음)
+    currentChapterId: selectedChapterId && selectedChapterId !== UNASSIGNED_CHAPTER ? selectedChapterId : null,
     storySoFar: activePath.map((s) => s.text).join("\n\n"),
     model: model || undefined,
     llm,

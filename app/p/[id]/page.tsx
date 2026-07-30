@@ -625,6 +625,9 @@ function SettingsPanel({
                   </code>
                 </p>
               )}
+              <Link href="/ollama-setup" target="_blank" className="mt-1 inline-block text-xs text-fuchsia-600 hover:underline dark:text-fuchsia-400">
+                자세한 설정 방법·에러 해결 보기 →
+              </Link>
             </div>
           )}
 

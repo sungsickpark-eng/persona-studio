@@ -602,6 +602,14 @@ function SettingsPanel({
             </div>
           </div>
 
+          {draft.provider !== "ollama" && (
+            <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+              ⚠ {PROVIDER_LABEL[draft.provider]} API는 사용량에 따라 요금이 청구될 수 있습니다. 발생하는 비용은 이 API 키의 소유자
+              본인 책임이며, 이 앱과 개발자는 그 비용에 대해 어떠한 책임도 지지 않습니다. 사용 전 해당 서비스의 요금제·한도를
+              직접 확인하세요.
+            </p>
+          )}
+
           {draft.provider === "ollama" && (
             <div>
               <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">로컬 LLM(Ollama) 서버 주소</p>

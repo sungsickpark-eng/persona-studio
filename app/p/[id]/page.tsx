@@ -2205,10 +2205,16 @@ function StoryTab({
   const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // 떡밥 각주를 클릭하면 그 지점으로 스크롤하고 잠깐 강조한다. 지금 보고 있는 챕터 필터에 그 지점이 없을 수도 있으니
-  // 항상 "전체 스토리"(활성 경로 전체)로 전환해 반드시 보이게 만든 뒤 스크롤한다
+  // 떡밥 각주를 클릭하면 그 지점으로 스크롤하고 잠깐 강조한다. 지금 보고 있는 챕터 필터에 그 지점이 없을 때만
+  // "전체 스토리"로 전환해 보이게 만든다 — 무조건 전환하면, 지금 선택된 챕터에 이어 쓰는 중이었을 때 필터가 조용히
+  // 풀려서(예: 인트로를 선택해 쓰다가 떡밥 각주 하나만 눌러도) 그 다음 "이어서 쓰기"가 미분류로 붙는 버그가 생김
   const scrollToNode = (nodeId: string) => {
-    setSelectedChapterId(null);
+    const node = project.story.find((n) => n.id === nodeId);
+    const nodeChapterId = node?.chapterId ?? null;
+    const visibleUnderCurrentFilter =
+      selectedChapterId === null ||
+      (selectedChapterId === UNASSIGNED_CHAPTER ? nodeChapterId === null : nodeChapterId === selectedChapterId);
+    if (!visibleUnderCurrentFilter) setSelectedChapterId(null);
     setHighlightNodeId(nodeId);
   };
 
@@ -2873,6 +2879,9 @@ function EditableStoryNode({
   // 브라우저마다(특히 blur 이후 선택 값 유지 여부가 갈릴 수 있어) 불안정할 수 있음 — 그래서 선택이 "일어나는 바로 그 순간"
   // onSelect에서 값을 미리 붙잡아두고, 나중엔 이 저장된 값만 사용한다(다시 읽지 않음)
   const lastSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  // 본문을 드래그로 선택하면 그 위에 뜨는 떡밥 설정/회수 메뉴 표시 여부. 메뉴 버튼엔 onMouseDown에서 preventDefault를 걸어
+  // 클릭해도 textarea가 blur되지 않게 해뒀으므로(선택도 그대로 유지됨), 진짜 다른 곳을 클릭했을 때만 onBlur로 닫힌다
+  const [hasSelection, setHasSelection] = useState(false);
   const isDirection = node.role === "direction";
   const plantedHere = foreshadows.filter((f) => f.plantNodeId === node.id);
   const resolvedHere = foreshadows.filter((f) => f.resolveNodeId === node.id);
@@ -2933,11 +2942,50 @@ function EditableStoryNode({
             onSelect={(e) => {
               const { selectionStart, selectionEnd } = e.currentTarget;
               if (selectionStart !== selectionEnd) lastSelectionRef.current = { start: selectionStart, end: selectionEnd };
+              setHasSelection(selectionStart !== selectionEnd);
             }}
+            onBlur={() => setHasSelection(false)}
             className={`col-start-1 row-start-1 w-full resize-none overflow-hidden rounded bg-transparent p-0.5 leading-relaxed text-transparent caret-gray-900 focus:outline-none focus:ring-1 focus:ring-fuchsia-300 dark:caret-gray-100 dark:focus:ring-fuchsia-700 ${
               isDirection ? "text-sm font-semibold" : "text-sm"
             }`}
           />
+          {hasSelection && (
+            <div
+              onMouseDown={(e) => e.preventDefault()}
+              className="absolute -top-8 right-0 z-10 flex items-center gap-1 rounded-md border border-gray-200 bg-white px-1.5 py-1 text-[10px] shadow-lg dark:border-gray-700 dark:bg-gray-900"
+            >
+              <button
+                onClick={() => {
+                  withSelection((start, end, text) => onPlantForeshadow(start, end, text));
+                  setHasSelection(false);
+                }}
+                title="선택한 문구를 새 떡밥(복선)으로 표시합니다"
+                className="rounded px-1.5 py-0.5 text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+              >
+                떡밥 설정
+              </button>
+              {unresolved.length > 0 && (
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const foreshadowId = e.target.value;
+                    if (!foreshadowId) return;
+                    withSelection((start, end, text) => onResolveForeshadow(foreshadowId, start, end, text));
+                    setHasSelection(false);
+                  }}
+                  title="선택한 문구를 기존 떡밥의 회수 지점으로 표시합니다"
+                  className="rounded border-0 bg-transparent px-1 py-0.5 text-emerald-600 dark:text-emerald-400"
+                >
+                  <option value="">떡밥 회수</option>
+                  {unresolved.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      떡밥{f.number} 회수
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
         </div>
         {(plantedHere.length > 0 || resolvedHere.length > 0) && (
           <div className="flex flex-wrap gap-1 px-0.5">
@@ -3008,32 +3056,6 @@ function EditableStoryNode({
             <option key={chapter.id} value={chapter.id}>
               {"　".repeat(depth)}
               {chapter.title}
-            </option>
-          ))}
-        </select>
-      )}
-      <button
-        onClick={() => withSelection((start, end, text) => onPlantForeshadow(start, end, text))}
-        title="선택한 문구를 새 떡밥(복선)으로 표시합니다"
-        className="mt-0.5 shrink-0 rounded px-1 text-[10px] text-gray-400 opacity-0 hover:bg-amber-50 hover:text-amber-600 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-amber-950/40"
-      >
-        떡밥 설정
-      </button>
-      {unresolved.length > 0 && (
-        <select
-          value=""
-          onChange={(e) => {
-            const foreshadowId = e.target.value;
-            if (!foreshadowId) return;
-            withSelection((start, end, text) => onResolveForeshadow(foreshadowId, start, end, text));
-          }}
-          title="선택한 문구를 기존 떡밥의 회수 지점으로 표시합니다"
-          className="mt-0.5 shrink-0 rounded border px-1 py-0.5 text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 dark:border-gray-700 dark:text-gray-500"
-        >
-          <option value="">떡밥 회수</option>
-          {unresolved.map((f) => (
-            <option key={f.id} value={f.id}>
-              떡밥{f.number} 회수
             </option>
           ))}
         </select>

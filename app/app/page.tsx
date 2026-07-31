@@ -89,7 +89,10 @@ export default function Home() {
     <main className="mx-auto max-w-xl p-8">
       <h1 className="text-2xl font-bold">Persona Studio</h1>
       <p className="mt-1 text-sm text-gray-500">
-        상황을 던져보세요. 대사는 캐릭터가 자신의 방식으로 선택합니다.
+        상황을 던져보세요. 대사는 캐릭터가 자신의 방식으로 선택합니다.{" "}
+        <Link href="/guide" className="text-fuchsia-600 hover:underline dark:text-fuchsia-400">
+          사용법 보기 →
+        </Link>
       </p>
       <div className="mt-6 flex gap-2">
         <input

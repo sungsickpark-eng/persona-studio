@@ -1,4 +1,4 @@
-# Persona Story Studio
+# Persona Studio
 
 "상황을 던져보세요. 대사는 캐릭터가 자신의 방식으로 선택합니다."
 

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Persona Story Studio",
+  title: "Persona Studio",
   description: "페르소나 기반 캐릭터 시뮬레이션 창작 보조 도구",
 };
 

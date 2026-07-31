@@ -139,7 +139,7 @@ export default function Workspace() {
   if (!project)
     return (
       <main className="p-8">
-        프로젝트를 찾을 수 없습니다. <Link href="/" className="underline">홈으로</Link>
+        프로젝트를 찾을 수 없습니다. <Link href="/app" className="underline">홈으로</Link>
       </main>
     );
 
@@ -178,7 +178,7 @@ export default function Workspace() {
     <main className="flex h-screen flex-col p-4">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <Link href="/" className="text-sm text-gray-400 hover:underline">← 프로젝트 목록</Link>
+          <Link href="/app" className="text-sm text-gray-400 hover:underline">← 프로젝트 목록</Link>
           <h1 className="truncate text-xl font-bold">{project.name}</h1>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">

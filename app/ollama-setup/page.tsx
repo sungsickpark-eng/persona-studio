@@ -25,7 +25,7 @@ export default function OllamaSetupPage() {
 
   return (
     <main className="mx-auto max-w-2xl p-8 text-sm leading-relaxed">
-      <Link href="/" className="text-gray-400 hover:underline">
+      <Link href="/app" className="text-gray-400 hover:underline">
         ← 홈으로
       </Link>
       <h1 className="mt-2 text-2xl font-bold">로컬 LLM(Ollama) 연동 설정</h1>

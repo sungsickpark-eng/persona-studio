@@ -81,6 +81,31 @@ type Tab = (typeof TABS)[number];
 const GRAPH_RATIO_MIN = 0.2;
 const GRAPH_RATIO_MAX = 0.75;
 
+// 헤더 타이틀 세리프 처리 + 상단 탭 메뉴를 세그먼트 레일 스타일로 — /app 대시보드 리디자인과 같은 시각 언어(fuchsia 악센트) 재사용
+const WORKSPACE_CSS = `
+  .ws-serif { font-family: "Nanum Myeongjo", "Apple Myungjo", Georgia, "Noto Serif KR", serif; letter-spacing: -0.01em; }
+  .ws-chrome-btn { transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease; }
+  .ws-chrome-btn:hover { border-color: rgba(217, 70, 239, 0.45); transform: translateY(-1px); }
+  .ws-tab-rail {
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid rgba(120, 113, 130, 0.16);
+    background: color-mix(in srgb, currentColor 3%, transparent);
+  }
+  .ws-tab {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    opacity: 0.7;
+    transition: background 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+  }
+  .ws-tab:hover { opacity: 1; background: rgba(217, 70, 239, 0.12); color: #d946ef; }
+  @media (prefers-reduced-motion: reduce) {
+    .ws-chrome-btn, .ws-tab { transition: none; }
+    .ws-chrome-btn:hover { transform: none; }
+  }
+`;
+
 export default function Workspace() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
@@ -176,10 +201,16 @@ export default function Workspace() {
 
   return (
     <main className="flex h-screen flex-col p-4">
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+      <style>{WORKSPACE_CSS}</style>
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3 dark:border-gray-900">
         <div className="min-w-0">
-          <Link href="/app" className="text-sm text-gray-400 hover:underline">← 프로젝트 목록</Link>
-          <h1 className="truncate text-xl font-bold">{project.name}</h1>
+          <Link
+            href="/app"
+            className="inline-flex items-center gap-1 text-xs text-gray-400 transition hover:text-fuchsia-600 dark:hover:text-fuchsia-400"
+          >
+            ← 프로젝트 목록
+          </Link>
+          <h1 className="ws-serif truncate text-2xl font-bold">{project.name}</h1>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {folderStatus === "connected" && (
@@ -209,7 +240,7 @@ export default function Workspace() {
           <button
             onClick={() => setSettingsOpen(true)}
             title="캐릭터 시뮬레이션·이야기 생성에 쓸 AI(로컬 LLM 또는 OpenAI/Gemini/Claude API)를 설정합니다"
-            className="whitespace-nowrap rounded border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-900"
+            className="ws-chrome-btn whitespace-nowrap rounded-md border border-gray-200 px-3 py-1.5 text-sm dark:border-gray-800"
           >
             설정 · {PROVIDER_LABEL[llmSettings.provider]}
           </button>
@@ -217,7 +248,7 @@ export default function Workspace() {
             <button
               onClick={() => setModelPanelOpen(true)}
               title="캐릭터 시뮬레이션에 쓸 로컬 Ollama 모델을 고르거나 새로 받습니다"
-              className="whitespace-nowrap rounded border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-900"
+              className="ws-chrome-btn whitespace-nowrap rounded-md border border-gray-200 px-3 py-1.5 text-sm dark:border-gray-800"
             >
               모델: {model || "기본값"}
             </button>
@@ -230,13 +261,9 @@ export default function Workspace() {
       )}
       {settingsOpen && <SettingsPanel settings={llmSettings} onSave={saveLlm} onClose={() => setSettingsOpen(false)} />}
 
-      <nav className="mt-3 flex shrink-0 flex-wrap gap-1.5">
+      <nav className="ws-tab-rail mt-3 flex shrink-0 flex-wrap gap-1">
         {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-900"
-          >
+          <button key={t} onClick={() => setTab(t)} className="ws-tab">
             {t}
             {t === "승인함" && project.pending.length > 0 && (
               <span className="ml-1 rounded-full bg-red-500 px-1.5 text-xs text-white">{project.pending.length}</span>

@@ -41,6 +41,7 @@ import { saveProjectToDir } from "@/lib/export";
 import { getStoredRootHandle, hasWritePermission, reconnectRootFolder } from "@/lib/rootFolder";
 import type { FSDirHandle } from "@/lib/fs-types";
 import RelationshipGraph from "./RelationshipGraph";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const TABS = ["장르", "세계관", "사실·비밀", "캐릭터", "집단", "관계", "인터뷰", "떡밥", "승인함", "삭제됨"] as const;
 
@@ -253,6 +254,7 @@ export default function Workspace() {
               모델: {model || "기본값"}
             </button>
           )}
+          <ThemeToggle className="ws-chrome-btn shrink-0 rounded-md border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800" />
         </div>
       </header>
 

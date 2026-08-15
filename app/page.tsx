@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 // 마케팅 랜딩 페이지. 실제 작업 화면(프로젝트 목록)은 /app으로 옮겨졌음 — 이 페이지의 CTA는 전부 그리로 연결됨.
 // 인터랙션(진실 가리기/보기)은 JS 없이 순수 CSS(checkbox 해킹)로만 구현 — 서버 컴포넌트로 충분해서 "use client" 없음.
@@ -105,6 +106,7 @@ export default function Landing() {
             <a href="#thesis">방식</a>
             <a href="#features">기능</a>
             <a href="#genres">장르</a>
+            <ThemeToggle className="theme-toggle" />
             <Link className="btn btn-primary" href="/app" style={{ color: "#fff" }}>
               시작하기
             </Link>
@@ -400,6 +402,12 @@ const LANDING_CSS = `
   .page .wordmark .dot { color: var(--magenta); }
   .page .nav-links { display: flex; align-items: center; gap: clamp(16px, 3vw, 32px); font-size: 0.9rem; color: var(--text-dim); }
   .page .nav-links a:hover { color: var(--text); }
+  .page .theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--border);
+    font-size: 0.95rem; line-height: 1; transition: border-color 0.15s ease;
+  }
+  .page .theme-toggle:hover { border-color: var(--text-dim); }
   .page .btn {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 10px 20px;

@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
+/* 나이트 모드 토글(lib/theme.ts) — <html data-theme>를 기준으로 Tailwind dark: 유틸리티 전체가 반응하게 함.
+   기본(시스템) prefers-color-scheme 대신 이 속성 하나로 통일한 이유: layout.tsx의 부트스트랩 스크립트가 페인트 전에
+   항상 (저장된 선택 또는 시스템 설정으로) 확정된 값을 세팅해두므로, 굳이 미디어 쿼리와 이중으로 관리할 필요가 없음 */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+}
+
+:root[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -10,13 +20,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

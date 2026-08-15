@@ -6,6 +6,7 @@ import { importObsidianVault } from "@/lib/import";
 import { saveProjectToDir } from "@/lib/export";
 import { getStoredRootHandle, hasWritePermission, pickRootFolder, reconnectRootFolder } from "@/lib/rootFolder";
 import type { FSDirHandle } from "@/lib/fs-types";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -89,17 +90,20 @@ export default function Home() {
     <main className="mx-auto max-w-3xl px-6 py-12 sm:px-8 sm:py-16">
       <style>{PROJECT_CARD_CSS}</style>
 
-      <header className="mb-10">
-        <p className="studio-eyebrow">세계관 · 인물 · 이야기</p>
-        <h1 className="studio-serif text-3xl font-bold sm:text-4xl">
-          Persona<span className="text-fuchsia-500">·</span>Studio
-        </h1>
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          상황을 던져보세요. 대사는 캐릭터가 자신의 방식으로 선택합니다.{" "}
-          <Link href="/guide" className="text-fuchsia-600 hover:underline dark:text-fuchsia-400">
-            사용법 보기 →
-          </Link>
-        </p>
+      <header className="mb-10 flex items-start justify-between gap-3">
+        <div>
+          <p className="studio-eyebrow">세계관 · 인물 · 이야기</p>
+          <h1 className="studio-serif text-3xl font-bold sm:text-4xl">
+            Persona<span className="text-fuchsia-500">·</span>Studio
+          </h1>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            상황을 던져보세요. 대사는 캐릭터가 자신의 방식으로 선택합니다.{" "}
+            <Link href="/guide" className="text-fuchsia-600 hover:underline dark:text-fuchsia-400">
+              사용법 보기 →
+            </Link>
+          </p>
+        </div>
+        <ThemeToggle className="shrink-0 rounded-full border border-gray-200 px-2.5 py-1.5 text-sm transition hover:border-fuchsia-400 dark:border-gray-800" />
       </header>
 
       <div className="studio-panel">

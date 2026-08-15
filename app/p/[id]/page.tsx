@@ -440,6 +440,17 @@ const KNOWN_MODELS = [
   { name: "codellama", label: "Code Llama (Meta)" },
 ] as const;
 
+// ModelPanel·SettingsPanel 공용 — 작은 항목마다 반복되는 라벨/입력창/기본 버튼 스타일을 하나로 통일해
+// (색상·포커스 상태 등 디자인 언어를) 두 패널 사이에서, 그리고 나머지 화면의 fuchsia 악센트와 일관되게 유지한다
+function FieldLabel({ children }: { children: ReactNode }) {
+  // uppercase를 쓰지 않는 이유: 라벨 안에 "Ollama"/"OpenAI" 같은 브랜드명이 그대로 들어있어서, 강제 대문자 변환을 쓰면
+  // "OLLAMA"처럼 표기가 깨짐 — 자간(tracking-wide)만으로 소제목 느낌을 낸다
+  return <p className="mb-1 text-xs font-semibold tracking-wide text-fuchsia-600 dark:text-fuchsia-400">{children}</p>;
+}
+const fieldInputCls =
+  "w-full rounded border border-gray-200 px-2 py-1.5 outline-none transition focus:border-fuchsia-400 dark:border-gray-800 dark:bg-transparent";
+const primaryBtnCls = "rounded bg-fuchsia-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-fuchsia-500";
+
 // 로컬 Ollama에 설치된 모델을 보여주고 고르게 하거나, 카탈로그/직접 입력한 이름으로 새 모델을 받게 하는 패널
 
 function ModelPanel({
@@ -538,7 +549,7 @@ function ModelPanel({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-800">
-          <h2 className="text-lg font-bold">로컬 모델</h2>
+          <h2 className="ws-serif text-xl font-bold">로컬 모델</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">닫기 ✕</button>
         </div>
         <div className="space-y-4 overflow-y-auto p-5 text-sm">
@@ -546,7 +557,7 @@ function ModelPanel({
           {error && <p className="whitespace-pre-wrap text-red-500">오류: {error}</p>}
 
           <div>
-            <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">설치된 모델</p>
+            <FieldLabel>설치된 모델</FieldLabel>
             {loading ? (
               <p className="text-gray-400">불러오는 중…</p>
             ) : installed.length === 0 ? (
@@ -557,8 +568,10 @@ function ModelPanel({
                   <button
                     key={m.name}
                     onClick={() => onChoose(m.name)}
-                    className={`flex w-full items-center justify-between rounded border px-3 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-gray-900 ${
-                      current === m.name ? "border-fuchsia-400 bg-fuchsia-50 dark:border-fuchsia-500 dark:bg-fuchsia-950/30" : ""
+                    className={`flex w-full items-center justify-between rounded border px-3 py-1.5 text-left transition hover:bg-gray-50 dark:hover:bg-gray-900 ${
+                      current === m.name
+                        ? "border-fuchsia-400 bg-fuchsia-50 dark:border-fuchsia-500 dark:bg-fuchsia-950/30"
+                        : "border-gray-200 dark:border-gray-800"
                     }`}
                   >
                     <span>{m.name}</span>
@@ -571,11 +584,11 @@ function ModelPanel({
             )}
           </div>
 
-          <div>
-            <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">받을 수 있는 모델 (오픈소스)</p>
+          <div className="border-t border-gray-100 pt-4 dark:border-gray-900">
+            <FieldLabel>받을 수 있는 모델 (오픈소스)</FieldLabel>
             <div className="space-y-1">
               {downloadable.map((m) => (
-                <div key={m.name} className="flex items-center justify-between rounded border px-3 py-1.5">
+                <div key={m.name} className="flex items-center justify-between rounded border border-gray-200 px-3 py-1.5 dark:border-gray-800">
                   <span>{m.label}</span>
                   {m.name in pulling ? (
                     <span className="text-xs text-gray-400">받는 중… {pulling[m.name]}%</span>
@@ -590,11 +603,11 @@ function ModelPanel({
             </div>
           </div>
 
-          <div>
-            <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">직접 입력 (Ollama 라이브러리의 다른 모델)</p>
+          <div className="border-t border-gray-100 pt-4 dark:border-gray-900">
+            <FieldLabel>직접 입력 (Ollama 라이브러리의 다른 모델)</FieldLabel>
             <div className="flex gap-2">
               <input
-                className="flex-1 rounded border px-2 py-1"
+                className={`flex-1 ${fieldInputCls}`}
                 placeholder='예: "llama3.3", "mixtral"'
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
@@ -602,7 +615,7 @@ function ModelPanel({
               <button
                 onClick={() => customName.trim() && pull(customName.trim())}
                 disabled={!customName.trim() || customName.trim() in pulling}
-                className="rounded bg-black px-3 py-1 text-xs text-white disabled:opacity-40 dark:bg-white dark:text-black"
+                className={`${primaryBtnCls} shrink-0 px-3 py-1 text-xs disabled:opacity-40`}
               >
                 다운로드
               </button>
@@ -692,7 +705,7 @@ function SettingsPanel({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-800">
-          <h2 className="text-lg font-bold">AI 연동 설정</h2>
+          <h2 className="ws-serif text-xl font-bold">AI 연동 설정</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">닫기 ✕</button>
         </div>
         <div className="space-y-4 overflow-y-auto p-5 text-sm">
@@ -701,16 +714,16 @@ function SettingsPanel({
           </p>
 
           <div>
-            <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">사용할 AI</p>
+            <FieldLabel>사용할 AI</FieldLabel>
             <div className="grid grid-cols-2 gap-1.5">
               {(Object.entries(PROVIDER_LABEL) as [LLMSettings["provider"], string][]).map(([value, label]) => (
                 <button
                   key={value}
                   onClick={() => set("provider", value)}
-                  className={`rounded border px-2.5 py-1.5 text-left ${
+                  className={`rounded border px-2.5 py-1.5 text-left transition ${
                     draft.provider === value
                       ? "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-500 dark:bg-fuchsia-950/30 dark:text-fuchsia-300"
-                      : "hover:bg-gray-50 dark:hover:bg-gray-900"
+                      : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
                   }`}
                 >
                   {label}
@@ -728,10 +741,10 @@ function SettingsPanel({
           )}
 
           {draft.provider === "ollama" && (
-            <div>
-              <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">로컬 LLM(Ollama) 서버 주소</p>
+            <div className="border-t border-gray-100 pt-4 dark:border-gray-900">
+              <FieldLabel>로컬 LLM(Ollama) 서버 주소</FieldLabel>
               <input
-                className="w-full rounded border px-2 py-1"
+                className={fieldInputCls}
                 placeholder="http://localhost:11434"
                 value={draft.ollamaUrl}
                 onChange={(e) => set("ollamaUrl", e.target.value)}
@@ -761,30 +774,30 @@ function SettingsPanel({
           )}
 
           {draft.provider === "openai" && (
-            <div className="space-y-2">
+            <div className="space-y-3 border-t border-gray-100 pt-4 dark:border-gray-900">
               <div>
-                <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">OpenAI API 키</p>
+                <FieldLabel>OpenAI API 키</FieldLabel>
                 <input
                   type="password"
-                  className="w-full rounded border px-2 py-1"
+                  className={fieldInputCls}
                   placeholder="sk-..."
                   value={draft.openaiKey}
                   onChange={(e) => set("openaiKey", e.target.value)}
                 />
               </div>
               <div>
-                <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">API 주소</p>
+                <FieldLabel>API 주소</FieldLabel>
                 <input
-                  className="w-full rounded border px-2 py-1"
+                  className={fieldInputCls}
                   placeholder="https://api.openai.com/v1"
                   value={draft.openaiUrl}
                   onChange={(e) => set("openaiUrl", e.target.value)}
                 />
               </div>
               <div>
-                <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">모델</p>
+                <FieldLabel>모델</FieldLabel>
                 <input
-                  className="w-full rounded border px-2 py-1"
+                  className={fieldInputCls}
                   placeholder="gpt-4o-mini"
                   value={draft.openaiModel}
                   onChange={(e) => set("openaiModel", e.target.value)}
@@ -794,31 +807,31 @@ function SettingsPanel({
           )}
 
           {draft.provider === "gemini" && (
-            <div className="space-y-2">
+            <div className="space-y-3 border-t border-gray-100 pt-4 dark:border-gray-900">
               <div>
-                <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">Google Gemini API 키</p>
+                <FieldLabel>Google Gemini API 키</FieldLabel>
                 <input
                   type="password"
-                  className="w-full rounded border px-2 py-1"
+                  className={fieldInputCls}
                   placeholder="AIza..."
                   value={draft.geminiKey}
                   onChange={(e) => set("geminiKey", e.target.value)}
                 />
               </div>
               <div>
-                <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">API 주소</p>
+                <FieldLabel>API 주소</FieldLabel>
                 <input
-                  className="w-full rounded border px-2 py-1"
+                  className={fieldInputCls}
                   placeholder="https://generativelanguage.googleapis.com"
                   value={draft.geminiUrl}
                   onChange={(e) => set("geminiUrl", e.target.value)}
                 />
               </div>
               <div>
-                <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">모델</p>
+                <FieldLabel>모델</FieldLabel>
                 <div className="flex gap-1.5">
                   <input
-                    className="w-full rounded border px-2 py-1"
+                    className={fieldInputCls}
                     placeholder="gemini-3.5-flash"
                     value={draft.geminiModel}
                     onChange={(e) => set("geminiModel", e.target.value)}
@@ -827,7 +840,7 @@ function SettingsPanel({
                     type="button"
                     disabled={!draft.geminiKey.trim() || geminiModelsLoading}
                     onClick={loadGeminiModels}
-                    className="shrink-0 rounded border px-2 py-1 text-xs disabled:opacity-40"
+                    className="ws-chrome-btn shrink-0 rounded border border-gray-200 px-2 py-1 text-xs disabled:opacity-40 dark:border-gray-800"
                   >
                     {geminiModelsLoading ? "불러오는 중…" : "목록 불러오기"}
                   </button>
@@ -835,7 +848,7 @@ function SettingsPanel({
                 {geminiModelsError && <p className="mt-1 text-xs text-red-500">{geminiModelsError}</p>}
                 {geminiModels.length > 0 && (
                   <select
-                    className="mt-1 w-full rounded border px-2 py-1 text-xs"
+                    className={`mt-1 text-xs ${fieldInputCls}`}
                     value=""
                     onChange={(e) => e.target.value && set("geminiModel", e.target.value)}
                   >
@@ -850,30 +863,30 @@ function SettingsPanel({
           )}
 
           {draft.provider === "claude" && (
-            <div className="space-y-2">
+            <div className="space-y-3 border-t border-gray-100 pt-4 dark:border-gray-900">
               <div>
-                <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">Claude API 키</p>
+                <FieldLabel>Claude API 키</FieldLabel>
                 <input
                   type="password"
-                  className="w-full rounded border px-2 py-1"
+                  className={fieldInputCls}
                   placeholder="sk-ant-..."
                   value={draft.claudeKey}
                   onChange={(e) => set("claudeKey", e.target.value)}
                 />
               </div>
               <div>
-                <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">API 주소</p>
+                <FieldLabel>API 주소</FieldLabel>
                 <input
-                  className="w-full rounded border px-2 py-1"
+                  className={fieldInputCls}
                   placeholder="https://api.anthropic.com"
                   value={draft.claudeUrl}
                   onChange={(e) => set("claudeUrl", e.target.value)}
                 />
               </div>
               <div>
-                <p className="mb-1 font-semibold text-gray-600 dark:text-gray-300">모델</p>
+                <FieldLabel>모델</FieldLabel>
                 <input
-                  className="w-full rounded border px-2 py-1"
+                  className={fieldInputCls}
                   placeholder="claude-sonnet-5"
                   value={draft.claudeModel}
                   onChange={(e) => set("claudeModel", e.target.value)}
@@ -883,7 +896,10 @@ function SettingsPanel({
           )}
         </div>
         <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-5 py-3 dark:border-gray-800">
-          <button onClick={onClose} className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-900">
+          <button
+            onClick={onClose}
+            className="rounded border border-gray-200 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
+          >
             취소
           </button>
           <button
@@ -891,7 +907,7 @@ function SettingsPanel({
               onSave(draft);
               onClose();
             }}
-            className="rounded bg-black px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black"
+            className={primaryBtnCls}
           >
             저장
           </button>

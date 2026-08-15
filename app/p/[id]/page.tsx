@@ -424,7 +424,7 @@ function StoryTimeline({ project }: { project: Project }) {
   );
 }
 
-type InstalledModel = { name: string; parameter_size?: string; size?: number };
+type InstalledModel = { name: string; digest?: string; parameter_size?: string; size?: number };
 
 // 오브시디언/허깅페이스 등에서 흔히 쓰이는, 알려진 오픈소스(오픈 웨이트) 모델 카탈로그 — 설치 안 돼 있으면 다운로드 버튼을 보여줌
 const KNOWN_MODELS = [
@@ -469,6 +469,8 @@ function ModelPanel({
   const [error, setError] = useState("");
   const [pulling, setPulling] = useState<Record<string, number>>({}); // 모델 이름 -> 다운로드 진행률(0~100)
   const [customName, setCustomName] = useState("");
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updatable, setUpdatable] = useState<Set<string>>(new Set());
   const url = ollamaUrl || "http://localhost:11434";
 
   // 이 패널이 서버(/api/models)를 거치지 않고 이 브라우저에서 Ollama로 직접 붙는 이유는 lib/llm.ts 상단 주석 참고 —
@@ -480,11 +482,39 @@ function ModelPanel({
       const res = await fetch(`${url}/api/tags`);
       if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
       const data = await res.json();
-      setInstalled(data.models ?? []);
+      const models: InstalledModel[] = data.models ?? [];
+      setInstalled(models);
+      checkUpdates(models);
     } catch (e) {
       setError(e instanceof TypeError ? ollamaConnectHint(url) : e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // registry.ollama.ai는 사용자의 로컬 Ollama가 아니라 공개 인터넷 호스트라 서버(/api/ollama-registry-digest)를
+  // 거쳐도 CORS·localhost 문제가 없음 — 실패해도(비공개/커스텀 모델, 오프라인 등) 조용히 배지만 안 뜨고 넘어감
+  const checkUpdates = async (models: InstalledModel[]) => {
+    if (models.length === 0) return;
+    setCheckingUpdates(true);
+    try {
+      const res = await fetch("/api/ollama-registry-digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refs: models.map((m) => m.name) }),
+      });
+      const data = await res.json();
+      const digests = (data.digests ?? {}) as Record<string, string | null>;
+      const next = new Set<string>();
+      for (const m of models) {
+        const remote = digests[m.name];
+        if (remote && m.digest && remote !== m.digest) next.add(m.name);
+      }
+      setUpdatable(next);
+    } catch {
+      setUpdatable(new Set());
+    } finally {
+      setCheckingUpdates(false);
     }
   };
 
@@ -557,7 +587,10 @@ function ModelPanel({
           {error && <p className="whitespace-pre-wrap text-red-500">오류: {error}</p>}
 
           <div>
-            <FieldLabel>설치된 모델</FieldLabel>
+            <div className="mb-1 flex items-center gap-2">
+              <FieldLabel>설치된 모델</FieldLabel>
+              {checkingUpdates && <span className="text-xs text-gray-400">업데이트 확인 중…</span>}
+            </div>
             {loading ? (
               <p className="text-gray-400">불러오는 중…</p>
             ) : installed.length === 0 ? (
@@ -565,20 +598,36 @@ function ModelPanel({
             ) : (
               <div className="space-y-1">
                 {installed.map((m) => (
-                  <button
+                  <div
                     key={m.name}
-                    onClick={() => onChoose(m.name)}
-                    className={`flex w-full items-center justify-between rounded border px-3 py-1.5 text-left transition hover:bg-gray-50 dark:hover:bg-gray-900 ${
+                    className={`flex items-center justify-between rounded border px-3 py-1.5 transition ${
                       current === m.name
                         ? "border-fuchsia-400 bg-fuchsia-50 dark:border-fuchsia-500 dark:bg-fuchsia-950/30"
                         : "border-gray-200 dark:border-gray-800"
                     }`}
                   >
-                    <span>{m.name}</span>
-                    <span className="text-xs text-gray-400">
-                      {m.parameter_size ?? ""} {m.size ? `· ${(m.size / 1e9).toFixed(1)}GB` : ""}
-                    </span>
-                  </button>
+                    <button onClick={() => onChoose(m.name)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left hover:opacity-80">
+                      <span className="truncate">{m.name}</span>
+                      {updatable.has(m.name) && (
+                        <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                          새 버전 있음
+                        </span>
+                      )}
+                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {updatable.has(m.name) &&
+                        (m.name in pulling ? (
+                          <span className="text-xs text-gray-400">받는 중… {pulling[m.name]}%</span>
+                        ) : (
+                          <button onClick={() => pull(m.name)} className="text-xs font-medium text-fuchsia-600 hover:underline dark:text-fuchsia-400">
+                            업데이트
+                          </button>
+                        ))}
+                      <span className="text-xs text-gray-400">
+                        {m.parameter_size ?? ""} {m.size ? `· ${(m.size / 1e9).toFixed(1)}GB` : ""}
+                      </span>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

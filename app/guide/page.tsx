@@ -5,28 +5,69 @@ const Code = ({ children }: { children: ReactNode }) => (
   <code className="rounded bg-gray-100 px-1 py-0.5 text-[13px] dark:bg-gray-900">{children}</code>
 );
 
-const TOC: { id: string; label: string }[] = [
-  { id: "start", label: "1. 시작하기" },
-  { id: "ai", label: "2. AI 연결하기" },
-  { id: "genre", label: "3. 장르 고르기" },
-  { id: "world", label: "4. 세계관 만들기" },
-  { id: "facts", label: "5. 사실과 비밀" },
-  { id: "personas", label: "6. 캐릭터 만들기" },
-  { id: "groups", label: "7. 집단 만들기" },
-  { id: "relations", label: "8. 관계 설정하기" },
-  { id: "interview", label: "9. 캐릭터 인터뷰" },
-  { id: "pending", label: "10. 제안된 설정 승인하기" },
-  { id: "story", label: "11. 이야기 함께 쓰기" },
-  { id: "foreshadow", label: "12. 떡밥 관리" },
-  { id: "trash", label: "13. 삭제와 복구" },
-  { id: "autosave", label: "14. 저장 폴더 연결과 자동 저장" },
-  { id: "obsidian", label: "15. 다른 컴퓨터에서 이어보기" },
+// 15개 절을 다시 훑기 쉽도록 4부로 묶음 — 목차와 본문 구분선(PartHeader) 양쪽에서 이 구조를 그대로 씀
+const TOC: { part: string; items: { id: string; label: string }[] }[] = [
+  {
+    part: "시작하기",
+    items: [
+      { id: "start", label: "1. 시작하기" },
+      { id: "ai", label: "2. AI 연결하기" },
+      { id: "genre", label: "3. 장르 고르기" },
+    ],
+  },
+  {
+    part: "세계와 인물 설계",
+    items: [
+      { id: "world", label: "4. 세계관 만들기" },
+      { id: "facts", label: "5. 사실과 비밀" },
+      { id: "personas", label: "6. 캐릭터 만들기" },
+      { id: "groups", label: "7. 집단 만들기" },
+      { id: "relations", label: "8. 관계 설정하기" },
+    ],
+  },
+  {
+    part: "이야기 진행",
+    items: [
+      { id: "interview", label: "9. 캐릭터 인터뷰" },
+      { id: "pending", label: "10. 제안된 설정 승인하기" },
+      { id: "story", label: "11. 이야기 함께 쓰기" },
+      { id: "foreshadow", label: "12. 떡밥 관리" },
+    ],
+  },
+  {
+    part: "관리와 백업",
+    items: [
+      { id: "trash", label: "13. 삭제와 복구" },
+      { id: "autosave", label: "14. 저장 폴더 연결과 자동 저장" },
+      { id: "obsidian", label: "15. 다른 컴퓨터에서 이어보기" },
+    ],
+  },
 ];
+
+const GUIDE_CSS = `
+  .guide-serif { font-family: "Nanum Myeongjo", "Apple Myungjo", Georgia, "Noto Serif KR", serif; letter-spacing: -0.01em; }
+  .guide-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.16em;
+    color: #d946ef; margin-bottom: 6px;
+  }
+  .guide-eyebrow::before { content: ""; width: 16px; height: 1px; background: currentColor; opacity: 0.6; }
+`;
+
+function PartHeader({ index, title }: { index: string; title: string }) {
+  return (
+    <div className="mt-14 first:mt-10">
+      <p className="guide-eyebrow">PART {index}</p>
+      <h2 className="guide-serif text-2xl font-bold">{title}</h2>
+      <div className="mt-4 border-t border-gray-200 dark:border-gray-800" />
+    </div>
+  );
+}
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section id={id} className="mt-10 scroll-mt-6">
-      <h2 className="text-lg font-bold">{title}</h2>
+    <section id={id} className="mt-8 scroll-mt-6">
+      <h3 className="text-lg font-bold">{title}</h3>
       <div className="mt-2 space-y-2 text-gray-600 dark:text-gray-300">{children}</div>
     </section>
   );
@@ -34,29 +75,41 @@ function Section({ id, title, children }: { id: string; title: string; children:
 
 export default function GuidePage() {
   return (
-    <main className="mx-auto max-w-2xl p-8 text-sm leading-relaxed">
+    <main className="mx-auto max-w-3xl p-8 text-sm leading-relaxed">
+      <style>{GUIDE_CSS}</style>
       <Link href="/app" className="text-gray-400 hover:underline">
         ← 홈으로
       </Link>
-      <h1 className="mt-2 text-2xl font-bold">사용법</h1>
+      <h1 className="guide-serif mt-2 text-3xl font-bold">사용법</h1>
       <p className="mt-2 text-gray-500">
         세계관을 세우고, 캐릭터를 만나고, 이야기를 함께 써 내려가기까지 — Persona Studio의 모든 기능을 순서대로
         설명합니다. 처음이라면 위에서부터 그대로 따라 해보세요.
       </p>
 
-      <nav className="mt-5 rounded border border-gray-200 p-4 dark:border-gray-800">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">목차</p>
-        <ul className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
-          {TOC.map((t) => (
-            <li key={t.id}>
-              <a href={`#${t.id}`} className="text-fuchsia-600 hover:underline dark:text-fuchsia-400">
-                {t.label}
-              </a>
-            </li>
+      <nav className="mt-5 rounded-xl border border-gray-200 p-5 dark:border-gray-800">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">목차</p>
+        <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+          {TOC.map((group) => (
+            <div key={group.part}>
+              <p className="mb-1.5 text-xs font-semibold text-fuchsia-600 dark:text-fuchsia-400">{group.part}</p>
+              <ul className="space-y-1">
+                {group.items.map((t) => (
+                  <li key={t.id}>
+                    <a
+                      href={`#${t.id}`}
+                      className="text-gray-600 hover:text-fuchsia-600 hover:underline dark:text-gray-300 dark:hover:text-fuchsia-400"
+                    >
+                      {t.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       </nav>
 
+      <PartHeader index="1" title="시작하기" />
       <Section id="start" title="1. 시작하기">
         <p>
           <Link href="/app" className="text-fuchsia-600 hover:underline dark:text-fuchsia-400">
@@ -108,6 +161,7 @@ export default function GuidePage() {
         </p>
       </Section>
 
+      <PartHeader index="2" title="세계와 인물 설계" />
       <Section id="world" title="4. 세계관 만들기">
         <p>
           <Code>세계관</Code> 탭은 시대·자연 법칙·힘의 근원·지배 구조·법과 징벌·지리·경제·역사·금기·종교·속어 등 17개
@@ -186,6 +240,7 @@ export default function GuidePage() {
         </p>
       </Section>
 
+      <PartHeader index="3" title="이야기 진행" />
       <Section id="interview" title="9. 캐릭터 인터뷰">
         <p>
           <Code>인터뷰</Code> 탭에서 캐릭터를 골라 대화합니다. <b>페르소나 강도</b>를 1~4로 조절할 수 있습니다:
@@ -241,6 +296,7 @@ export default function GuidePage() {
         </p>
       </Section>
 
+      <PartHeader index="4" title="관리와 백업" />
       <Section id="trash" title="13. 삭제와 복구">
         <p>
           캐릭터나 집단을 삭제해도 실제로는 <Code>삭제됨</Code> 탭으로만 옮겨갑니다 — 소속, 관계, 사실 접근 정보 등

@@ -86,73 +86,152 @@ export default function Home() {
   };
 
   return (
-    <main className="mx-auto max-w-xl p-8">
-      <h1 className="text-2xl font-bold">Persona Studio</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        상황을 던져보세요. 대사는 캐릭터가 자신의 방식으로 선택합니다.{" "}
-        <Link href="/guide" className="text-fuchsia-600 hover:underline dark:text-fuchsia-400">
-          사용법 보기 →
-        </Link>
-      </p>
-      <div className="mt-6 flex gap-2">
-        <input
-          className="flex-1 rounded border px-3 py-2"
-          placeholder="새 프로젝트 이름"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && create()}
-        />
-        <button onClick={create} className="rounded bg-black px-4 py-2 text-white dark:bg-white dark:text-black">
-          만들기
-        </button>
-      </div>
-      <div className="mt-3 flex items-center gap-2">
-        <button
-          onClick={importFolder}
-          disabled={importing}
-          className="rounded border px-3 py-1.5 text-sm disabled:opacity-40"
-        >
-          {importing ? "불러오는 중…" : "저장 폴더에서 불러오기"}
-        </button>
-        <span className="text-xs text-gray-400">Obsidian 내보내기 폴더를 골라 그 안의 프로젝트들을 복원합니다.</span>
-      </div>
-      {importMsg && <p className="mt-1 text-xs text-gray-500">{importMsg}</p>}
+    <main className="mx-auto max-w-3xl px-6 py-12 sm:px-8 sm:py-16">
+      <style>{PROJECT_CARD_CSS}</style>
 
-      <p className="mt-1 text-xs text-gray-400">
-        또는 스토리를 저장할 폴더를 선택해 주세요 — 그 폴더가 이야기의 루트 폴더가 되어, 새 프로젝트를 만들면 그 안에
-        프로젝트 이름의 폴더가 자동으로 생기고 이야기가 바뀔 때마다 자동으로 저장됩니다.
-      </p>
-      <div className="mt-1.5 flex items-center gap-2">
-        <button onClick={connectRoot} className="rounded border px-3 py-1.5 text-sm">
-          {rootHandle ? "저장 폴더 변경" : "저장 폴더 선택"}
-        </button>
-        {rootHandle && rootPermission === "granted" && (
-          <span className="text-xs text-emerald-600 dark:text-emerald-400">연결됨: {rootHandle.name}</span>
-        )}
-        {rootHandle && rootPermission === "lost" && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">
-            {rootHandle.name} 연결이 끊어졌어요 —{" "}
-            <button onClick={reconnectRoot} className="underline">
-              다시 연결
-            </button>
-          </span>
-        )}
-      </div>
-      <ul className="mt-6 space-y-2">
-        {projects.map((p) => (
-          <li key={p.id} className="flex items-center justify-between rounded border p-3">
-            <Link href={`/p/${p.id}`} className="font-medium hover:underline">
-              {p.name}
-            </Link>
-            <span className="text-sm text-gray-400">
-              캐릭터 {p.personas.length} · 승인대기 {p.pending.length}
-              <button onClick={() => remove(p.id)} className="ml-3 text-red-400 hover:text-red-600">
-                삭제
+      <header className="mb-10">
+        <p className="studio-eyebrow">세계관 · 인물 · 이야기</p>
+        <h1 className="studio-serif text-3xl font-bold sm:text-4xl">
+          Persona<span className="text-fuchsia-500">·</span>Studio
+        </h1>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          상황을 던져보세요. 대사는 캐릭터가 자신의 방식으로 선택합니다.{" "}
+          <Link href="/guide" className="text-fuchsia-600 hover:underline dark:text-fuchsia-400">
+            사용법 보기 →
+          </Link>
+        </p>
+      </header>
+
+      <div className="studio-panel">
+        <div className="flex gap-2">
+          <input
+            className="flex-1 rounded-md border border-gray-200 bg-transparent px-3 py-2.5 text-sm outline-none focus:border-fuchsia-400 dark:border-gray-800"
+            placeholder="새 프로젝트 이름"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && create()}
+          />
+          <button
+            onClick={create}
+            className="shrink-0 rounded-md bg-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-fuchsia-500"
+          >
+            만들기
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-dashed border-gray-200 pt-4 text-xs dark:border-gray-800">
+          <button
+            onClick={importFolder}
+            disabled={importing}
+            className="rounded border border-gray-200 px-2.5 py-1 text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-900"
+          >
+            {importing ? "불러오는 중…" : "저장 폴더에서 불러오기"}
+          </button>
+          <button
+            onClick={connectRoot}
+            className="rounded border border-gray-200 px-2.5 py-1 text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-900"
+          >
+            {rootHandle ? "저장 폴더 변경" : "저장 폴더 선택"}
+          </button>
+          {rootHandle && rootPermission === "granted" && (
+            <span className="text-emerald-600 dark:text-emerald-400">연결됨: {rootHandle.name}</span>
+          )}
+          {rootHandle && rootPermission === "lost" && (
+            <span className="text-amber-600 dark:text-amber-400">
+              {rootHandle.name} 연결이 끊어졌어요 —{" "}
+              <button onClick={reconnectRoot} className="underline">
+                다시 연결
               </button>
             </span>
-          </li>
-        ))}
-      </ul>
+          )}
+        </div>
+        {importMsg && <p className="mt-2 text-xs text-gray-500">{importMsg}</p>}
+        <p className="mt-2 text-xs text-gray-400">
+          저장 폴더를 연결하면 새 프로젝트가 그 안에 자동으로 생기고, 이야기가 바뀔 때마다 자동 저장됩니다.
+        </p>
+      </div>
+
+      {projects.length === 0 ? (
+        <div className="studio-empty mt-8">
+          <p className="text-sm text-gray-500 dark:text-gray-400">아직 만든 프로젝트가 없습니다.</p>
+          <p className="mt-1 text-xs text-gray-400">위에서 이름을 입력하고 시작해보세요.</p>
+        </div>
+      ) : (
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {projects.map((p, i) => (
+            <div
+              key={p.id}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                e.currentTarget.style.setProperty("--mx", `${((e.clientX - rect.left) / rect.width) * 100}%`);
+                e.currentTarget.style.setProperty("--my", `${((e.clientY - rect.top) / rect.height) * 100}%`);
+              }}
+              className="project-card relative rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
+            >
+              <Link href={`/p/${p.id}`} className="absolute inset-0" aria-label={`${p.name} 열기`} />
+              <div className="relative z-10 flex items-start justify-between gap-2">
+                <div>
+                  <span className="studio-mono text-[10px] text-fuchsia-500/70">NO. {String(i + 1).padStart(3, "0")}</span>
+                  <h2 className="studio-serif text-lg font-bold">{p.name}</h2>
+                </div>
+                <button onClick={() => remove(p.id)} className="relative z-10 shrink-0 text-xs text-red-400 hover:text-red-600">
+                  삭제
+                </button>
+              </div>
+              <p className="relative z-10 mt-2.5 text-xs text-gray-400">
+                캐릭터 {p.personas.length} · 승인대기 {p.pending.length}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }
+
+const PROJECT_CARD_CSS = `
+  .studio-serif { font-family: "Nanum Myeongjo", "Apple Myungjo", Georgia, "Noto Serif KR", serif; letter-spacing: -0.01em; }
+  .studio-mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0.06em; }
+  .studio-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.16em;
+    color: #d946ef; margin-bottom: 10px;
+  }
+  .studio-eyebrow::before { content: ""; width: 16px; height: 1px; background: currentColor; opacity: 0.6; }
+  .studio-panel {
+    border: 1px solid rgba(120, 113, 130, 0.18);
+    border-radius: 12px;
+    padding: 20px;
+    background: color-mix(in srgb, currentColor 3%, transparent);
+  }
+  .studio-empty {
+    border: 1px dashed rgba(120, 113, 130, 0.28);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+  }
+  .project-card {
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .project-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(217, 70, 239, 0.4);
+    box-shadow: 0 8px 24px -12px rgba(217, 70, 239, 0.35);
+  }
+  .project-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(217, 70, 239, 0.16), transparent 60%);
+    pointer-events: none;
+  }
+  .project-card:hover::before { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .project-card { transition: none; }
+    .project-card::before { transition: none; }
+    .project-card:hover { transform: none; }
+  }
+`;

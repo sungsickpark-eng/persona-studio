@@ -168,8 +168,7 @@ export default function Home() {
               }}
               className="project-card relative rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
             >
-              <Link href={`/p/${p.id}`} className="absolute inset-0" aria-label={`${p.name} 열기`} />
-              <div className="relative z-10 flex items-start justify-between gap-2">
+              <div className="flex items-start justify-between gap-2">
                 <div>
                   <span className="studio-mono text-[10px] text-fuchsia-500/70">NO. {String(i + 1).padStart(3, "0")}</span>
                   <h2 className="studio-serif text-lg font-bold">{p.name}</h2>
@@ -178,9 +177,10 @@ export default function Home() {
                   삭제
                 </button>
               </div>
-              <p className="relative z-10 mt-2.5 text-xs text-gray-400">
+              <p className="mt-2.5 text-xs text-gray-400">
                 캐릭터 {p.personas.length} · 승인대기 {p.pending.length}
               </p>
+              <Link href={`/p/${p.id}`} className="absolute inset-0" aria-label={`${p.name} 열기`} />
             </div>
           ))}
         </div>

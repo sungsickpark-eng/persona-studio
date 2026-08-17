@@ -105,6 +105,16 @@ const WORKSPACE_CSS = `
     .ws-chrome-btn, .ws-tab { transition: none; }
     .ws-chrome-btn:hover { transform: none; }
   }
+
+  /* 그래프/이야기 쓰기 두 칸은 드래그로 조절되는 비율(graphRatio)을 인라인 style={flexGrow}로 받는데,
+     이 값은 JS 상태라 Tailwind sm: 접두사만으론 모바일에서 무효화가 안 됨 — 여기서 !important로 덮어써서
+     "화면 하나에 억지로 분할"이 아니라 "각자 필요한 높이 + 페이지 전체 스크롤"로 바꿈.
+     관계도는 h-full로 부모 높이를 그대로 물려받는 구조라(RelationshipGraph.tsx) 모바일에서도 명시적 높이가
+     필요해 고정값(60vh)을 줌 — 이야기 쓰기 쪽은 내용에 맞춰 자연스러운 높이로 늘어나면 됨 */
+  @media (max-width: 639px) {
+    .ws-graph-wrap { flex: none !important; height: 60vh !important; min-height: 320px; }
+    .ws-story-wrap { flex: none !important; height: auto !important; }
+  }
 `;
 
 export default function Workspace() {
@@ -201,7 +211,7 @@ export default function Workspace() {
   };
 
   return (
-    <main className="flex h-screen flex-col p-4">
+    <main className="flex min-h-screen flex-col p-4 sm:h-screen">
       <style>{WORKSPACE_CSS}</style>
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3 dark:border-gray-900">
         <div className="min-w-0">
@@ -281,10 +291,15 @@ export default function Workspace() {
         <StoryTimeline project={project} />
       </div>
 
-      {/* 관계도를 지도처럼 화면에 가장 크게 표시 — 나머지 설정은 아래 팝업으로 뜬다 */}
-      <div ref={splitRef} className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* 관계도를 지도처럼 화면에 가장 크게 표시 — 나머지 설정은 아래 팝업으로 뜬다.
+          모바일(sm 미만)에서는 그래프+이야기 쓰기 영역을 한 화면 높이에 억지로 욱여넣지 않고(그러면 이야기 쓰기
+          칸이 다른 영역과 겹쳐 보임), 각자 필요한 높이만큼 자연스럽게 늘어나고 페이지 전체가 스크롤되게 함 —
+          <main>·이 div는 sm: 접두사로 데스크톱에서만 고정 높이+분할, 그래프/이야기 두 칸의 인라인 flexGrow
+          스타일(드래그로 조절되는 값이라 Tailwind 클래스만으론 반응형 처리가 안 돼)은 WORKSPACE_CSS의
+          .ws-graph-wrap/.ws-story-wrap 모바일 미디어 쿼리로 무효화함 */}
+      <div ref={splitRef} className="mt-3 flex flex-col sm:min-h-0 sm:flex-1 sm:overflow-hidden">
         {/* 틀(테두리) 크기는 고정 — 확대/축소는 그래프 안쪽에서 내용 자체를 줌하는 방식 (그래프 우상단 +/- 버튼) */}
-        <div className="min-h-0" style={{ flexGrow: graphRatio, flexBasis: 0 }}>
+        <div className="ws-graph-wrap min-h-0" style={{ flexGrow: graphRatio, flexBasis: 0 }}>
           <RelationshipGraph
             project={project}
             update={update}
@@ -294,18 +309,19 @@ export default function Workspace() {
             }}
           />
         </div>
-        {/* 관계도와 이야기 쓰기창 사이 구분선 — 드래그해 두 영역의 세로 비율을 조절 */}
+        {/* 관계도와 이야기 쓰기창 사이 구분선 — 드래그해 두 영역의 세로 비율을 조절 (모바일에선 더 이상 분할 비율
+            개념이 없어 숨김) */}
         <div
           onPointerDown={(e) => (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)}
           onPointerMove={onResizePointerMove}
           title="드래그해서 관계도와 이야기 쓰기창의 비율을 조절하세요"
-          className="my-2 flex h-3 shrink-0 cursor-row-resize items-center justify-center"
+          className="my-2 hidden h-3 shrink-0 cursor-row-resize items-center justify-center sm:flex"
         >
           <div className="h-1 w-16 rounded-full bg-gray-300 dark:bg-gray-700" />
         </div>
         {/* 관계도 아래에 항상 떠 있는 이야기 쓰기창 — 팝업을 열지 않고 바로 글을 이어 쓸 수 있음 */}
         <div
-          className="min-h-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950"
+          className="ws-story-wrap mt-3 min-h-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:mt-0 dark:border-gray-800 dark:bg-gray-950"
           style={{ flexGrow: 1 - graphRatio, flexBasis: 0 }}
         >
           <StoryTab
@@ -2709,9 +2725,9 @@ function StoryTab({
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 sm:flex-row">
+    <div className="flex flex-col gap-3 sm:h-full sm:flex-row">
       <ChapterTree project={project} update={update} selectedChapterId={selectedChapterId} onSelect={setSelectedChapterId} />
-      <div className="flex h-full min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col sm:h-full">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h2 className="shrink-0 text-sm font-semibold">이야기 쓰기</h2>
@@ -2888,7 +2904,7 @@ function StoryTab({
         </label>
       </div>
 
-      <div className="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto rounded border p-3">
+      <div className="mt-2 space-y-3 rounded border p-3 sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
         {displayedNodes.length === 0 && (
           <p className="text-sm text-gray-400">
             {isUnassignedSelected

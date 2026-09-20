@@ -321,7 +321,13 @@ export default function Workspace() {
         <ModelPanel current={model} ollamaUrl={llmSettings.ollamaUrl} onChoose={chooseModel} onClose={() => setModelPanelOpen(false)} />
       )}
       {settingsOpen && (
-        <SettingsPanel settings={llmSettings} model={model} onSave={saveLlm} onClose={() => setSettingsOpen(false)} />
+        <SettingsPanel
+          settings={llmSettings}
+          model={model}
+          onChooseModel={chooseModel}
+          onSave={saveLlm}
+          onClose={() => setSettingsOpen(false)}
+        />
       )}
 
       <nav className="ws-tab-rail mt-3 flex shrink-0 flex-wrap gap-1">
@@ -828,20 +834,24 @@ function CopyButton({ text }: { text: string }) {
 }
 
 // AI 연동 설정 도구 — 로컬 LLM(Ollama) 서버 주소, Google Gemini/OpenAI/Claude의 API 주소·키를 입력하고
-// 캐릭터 시뮬레이션·이야기 생성에 어떤 AI를 쓸지 고르는 패널. 로컬 LLM의 "어떤 모델"은 기존 ModelPanel이 그대로 담당
+// 캐릭터 시뮬레이션·이야기 생성에 어떤 AI를 쓸지 고르는 패널. 로컬 AI를 고르면 "모델 선택" 버튼으로 바로 여기서
+// ModelPanel을 팝업으로 띄운다 — 헤더의 "모델" 버튼(provider가 이미 ollama로 저장돼 있어야 보임)까지 갈 필요 없이,
+// 아직 저장 전인 draft 상태에서 로컬 AI를 미리 눌러본 상태에서도 바로 모델을 고르거나 받을 수 있다
 function SettingsPanel({
   settings,
   model,
+  onChooseModel,
   onSave,
   onClose,
 }: {
   settings: LLMSettings;
-  model: string; // 지금 선택된 로컬 Ollama 모델 이름 — 어떤 모델을 쓸지 고르는 건 별도 ModelPanel(헤더의 "모델" 버튼) 담당,
-  // 여기서는 로컬 AI를 골랐을 때 지금 뭐가 선택돼 있는지만 보여준다
+  model: string; // 지금 선택된 로컬 Ollama 모델 이름
+  onChooseModel: (name: string) => void;
   onSave: (s: LLMSettings) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(settings);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const set = <K extends keyof LLMSettings>(key: K, value: LLMSettings[K]) => setDraft((d) => ({ ...d, [key]: value }));
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const { isPaid } = useSubscription();
@@ -869,15 +879,16 @@ function SettingsPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" onClick={onClose}>
-      <div
-        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-950"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-800">
-          <h2 className="ws-serif text-xl font-bold">AI 연동 설정</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">닫기 ✕</button>
-        </div>
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" onClick={onClose}>
+        <div
+          className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-950"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-800">
+            <h2 className="ws-serif text-xl font-bold">AI 연동 설정</h2>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">닫기 ✕</button>
+          </div>
         <div className="space-y-4 overflow-y-auto p-5 text-sm">
           <p className="text-gray-500">
             캐릭터 시뮬레이션·이야기 생성에 쓸 AI를 고르고, 각 서비스의 API 주소·키를 입력하세요. 이 브라우저에만 저장되며, 요청할 때만 서버로 전달됩니다.
@@ -965,10 +976,17 @@ function SettingsPanel({
 
           {draft.provider === "ollama" && (
             <div className="border-t border-gray-100 pt-4 dark:border-gray-900">
-              <p className="mb-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-                지금 선택된 모델: <span className="font-semibold">{model || "기본값"}</span> — 상단 헤더의 &quot;모델&quot; 버튼에서 다른
-                걸로 바꾸거나 새로 받을 수 있습니다.
-              </p>
+              <div className="mb-3 flex items-center justify-between gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                <span>
+                  지금 선택된 모델: <span className="font-semibold">{model || "기본값"}</span>
+                </span>
+                <button
+                  onClick={() => setModelPickerOpen(true)}
+                  className="shrink-0 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  모델 선택
+                </button>
+              </div>
               <FieldLabel>로컬 LLM(Ollama) 서버 주소</FieldLabel>
               <input
                 className={fieldInputCls}
@@ -1140,7 +1158,21 @@ function SettingsPanel({
           </button>
         </div>
       </div>
-    </div>
+      </div>
+      {/* ModelPanel은 이 배경(위 div)의 형제로 둬야 한다 — 그 안에 두면 ModelPanel 배경 클릭이 버블링돼
+          이 설정 팝업까지 같이 닫혀버림(둘 다 onClick={onClose}가 배경 자체에 달려있어서) */}
+      {modelPickerOpen && (
+        <ModelPanel
+          current={model}
+          ollamaUrl={draft.ollamaUrl}
+          onChoose={(name) => {
+            onChooseModel(name);
+            setModelPickerOpen(false);
+          }}
+          onClose={() => setModelPickerOpen(false)}
+        />
+      )}
+    </>
   );
 }
 

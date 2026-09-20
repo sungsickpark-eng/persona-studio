@@ -1,4 +1,6 @@
-// MVP 저장소: localStorage. ponytail: DB 없음, 검증 후 Supabase로 이전
+// MVP 저장소: localStorage. 유료 사용자는 saveProjects 끝에서 lib/cloudSync.ts를 통해 Supabase로도 동기화된다
+// (무료 사용자는 이 파일만으로 예전과 동일하게 동작 — cloudSync는 로그인+구독 상태가 아니면 조용히 아무것도 안 함)
+import { queueCloudSync } from "./cloudSync";
 export type Access =
   | { status: "knows"; revealChapterId?: string } // revealChapterId 없으면 처음부터 앎, 있으면 그 챕터부터 앎(중간에 알게 됨)
   | { status: "unknown" } // 끝까지 모름
@@ -140,9 +142,18 @@ export function newPersonaGroupRelation(personaId: string, groupId: string, scor
   return { id: uid(), personaId, groupId, score, personaAware: true, groupAware: true };
 }
 
-export type Msg = { role: "author" | "char"; text: string; inner?: string };
+// at은 이 메시지가 실제로 오간 시각(ISO) — 없으면(이 필드가 생기기 전 기록) "시간 미상"으로 취급.
+// AI 기록 탭이 이야기(StoryNode)·인터뷰(Msg)를 하나의 시간순 목록으로 합칠 때 씀.
+export type Msg = { role: "author" | "char"; text: string; inner?: string; at?: string };
 
-export type Pending = { id: string; personaId: string; text: string };
+// AI가 만들어낸 걸 사람이 승인해야만 공식 설정에 반영되는 항목들 — kind별로 승인 시 어디로 들어가는지가 다르다
+// (app/p/[id]/page.tsx의 PendingTab 참고). personaNote는 인터뷰 중 나온 즉흥 설정, 나머지 셋은 이야기를 이어 쓸 때
+// app/api/story/route.ts의 "extract" 모드가 뽑아낸 것.
+export type Pending =
+  | { id: string; kind: "personaNote"; personaId: string; text: string } // 승인 시 해당 캐릭터의 notes에 추가
+  | { id: string; kind: "fact"; content: string } // 승인 시 새 Fact로 (지명 등 인물에 안 묶이는 것도 여기로)
+  | { id: string; kind: "persona"; name: string; summary: string } // 승인 시 빈 캐릭터를 만들고 summary를 notes에 넣음
+  | { id: string; kind: "group"; name: string; summary: string }; // 승인 시 빈 집단을 만들고 summary를 description에 넣음
 
 // 세계관 설정 항목 — "세계관 설정.md" 문서의 5개 대분류(기본 규칙/사회 구조/지리·생활/역사/문화)를 그대로 따름
 export type World = {
@@ -255,7 +266,9 @@ export function isRevealed(access: Access, chapters: Chapter[], currentChapterId
 // 이야기 쓰기 로그. "direction"은 채택되거나 직접 입력한 전개 방향(작가 쪽), "story"는 젬마가 그 방향으로 써 내려간 소설체 본문.
 // parentId로 트리를 이룬다 — 어느 지점에서든 다른 방향으로 다시 쓰면 그 지점에 새 가지(branch)가 생긴다(루트는 parentId=null)
 // chapterId는 이 지점이 챕터 목차의 어느 막/장에 속하는지(작가가 직접 지정) — 서술 분기와 무관한 별도 태그
-export type StoryNode = { id: string; parentId: string | null; role: "direction" | "story"; text: string; chapterId?: string };
+// at은 이 지점이 실제로 생성된 시각(ISO) — moveNode로 표시 순서(배열 순서)를 바꿔도 안 바뀌므로, AI 기록 탭이
+// 인터뷰(Msg)와 섞어 진짜 시간순으로 정렬할 때는 배열 순서 대신 이 값을 쓴다. 없으면(이 필드가 생기기 전 기록) "시간 미상".
+export type StoryNode = { id: string; parentId: string | null; role: "direction" | "story"; text: string; chapterId?: string; at?: string };
 
 // storyCurrentId(현재 이어 쓰고 있는 지점)부터 루트까지 거슬러 올라가 활성 경로(뿌리→현재)를 반환
 export function storyActivePath(story: StoryNode[], currentId: string | null): StoryNode[] {
@@ -339,6 +352,9 @@ export function loadProjects(): Project[] {
       p.storyCurrentId ??= null;
       p.chapters ??= [];
       p.foreshadows ??= [];
+      p.pending ??= [];
+      // 구버전 승인 대기 항목은 kind가 없었음(인터뷰의 캐릭터 메모 제안뿐이었으므로) -> "personaNote"로 채워줌
+      for (const item of p.pending as (Pending & { kind?: Pending["kind"] })[]) item.kind ??= "personaNote";
       p.viewpoint ??= { ...DEFAULT_VIEWPOINT };
       p.genre ??= { ...DEFAULT_GENRE };
       // 구버전 장르(하나만 고르는 preset: string) -> 여러 개를 고르는 presets: string[]로 이전
@@ -409,6 +425,7 @@ export function loadProjects(): Project[] {
 
 export function saveProjects(projects: Project[]) {
   localStorage.setItem(KEY, JSON.stringify(projects));
+  queueCloudSync(projects);
 }
 
 // 어떤 로컬 Ollama 모델을 쓸지는 프로젝트 데이터가 아니라 이 브라우저(로컬 환경) 전역 설정 — 프로젝트를 오가도 유지됨
@@ -424,11 +441,16 @@ export function saveSelectedModel(model: string) {
 }
 
 // 어떤 AI(로컬 LLM 또는 클라우드 API)로 캐릭터 시뮬레이션·이야기 생성을 할지 — 프로젝트와 무관한 브라우저 전역 설정.
-// 로컬 LLM은 모델 이름까지는 여기 안 담고(기존 loadSelectedModel/ModelPanel이 그대로 담당), 서버 주소만 여기서 관리한다
-export type LLMProvider = "ollama" | "openai" | "gemini" | "claude";
+// 로컬 LLM은 모델 이름까지는 여기 안 담고(기존 loadSelectedModel/ModelPanel이 그대로 담당), 서버 주소만 여기서 관리한다.
+// "included"는 키 입력이 필요 없는 구독 포함 AI — 서버가 자기 키로 대신 호출한다(lib/includedLlm.ts가 로그인/구독/월별
+// 사용량 상한을 확인). 그 안에서 어떤 모델을 쓸지는 includedProvider로 고른다 — Claude는 단가가 비싸 포함 대상이 아니라
+// openai/gemini 둘 중 하나뿐이다(lib/pricing.ts 참고).
+export type LLMProvider = "ollama" | "included" | "openai" | "gemini" | "claude";
+export type IncludedProvider = "openai" | "gemini";
 
 export type LLMSettings = {
   provider: LLMProvider;
+  includedProvider: IncludedProvider;
   ollamaUrl: string;
   openaiKey: string;
   openaiUrl: string;
@@ -443,6 +465,7 @@ export type LLMSettings = {
 
 export const DEFAULT_LLM_SETTINGS: LLMSettings = {
   provider: "ollama",
+  includedProvider: "openai",
   ollamaUrl: "http://localhost:11434",
   openaiKey: "",
   openaiUrl: "https://api.openai.com/v1",

@@ -31,6 +31,7 @@ import {
   type Foreshadow,
   type LLMSettings,
   type Msg,
+  type Pending,
   type Persona,
   type Project,
   type Relation,
@@ -42,8 +43,11 @@ import { getStoredRootHandle, hasWritePermission, reconnectRootFolder } from "@/
 import type { FSDirHandle } from "@/lib/fs-types";
 import RelationshipGraph from "./RelationshipGraph";
 import ThemeToggle from "@/components/ThemeToggle";
+import AuthBadge from "@/components/AuthBadge";
+import { useSubscription } from "@/components/AuthProvider";
+import { MONTHLY_CALL_CAP } from "@/lib/pricing";
 
-const TABS = ["장르", "세계관", "사실·비밀", "캐릭터", "집단", "관계", "인터뷰", "떡밥", "승인함", "삭제됨"] as const;
+const TABS = ["장르", "세계관", "사실·비밀", "캐릭터", "집단", "관계", "인터뷰", "떡밥", "AI 기록", "승인함", "삭제됨"] as const;
 
 // Ollama에 연결이 안 될 때(fetch 자체가 실패)의 공통 안내 — 배포된 사이트에서는 이 브라우저가 자신의 Ollama로
 // 직접 접속하는 구조라, Ollama 쪽에서 이 사이트 주소를 허용(OLLAMA_ORIGINS)하지 않았으면 CORS로 막힘. 매번 다시 찾아보지
@@ -264,6 +268,7 @@ export default function Workspace() {
               모델: {model || "기본값"}
             </button>
           )}
+          <AuthBadge />
           <ThemeToggle className="ws-chrome-btn shrink-0 rounded-md border border-gray-200 px-2.5 py-1.5 text-sm dark:border-gray-800" />
         </div>
       </header>
@@ -369,6 +374,7 @@ export default function Workspace() {
                   }}
                 />
               )}
+              {tab === "AI 기록" && <AiLogTab project={project} />}
               {tab === "승인함" && <PendingTab project={project} update={update} />}
               {tab === "삭제됨" && <TrashTab project={project} update={update} />}
             </div>
@@ -697,6 +703,7 @@ function ModelPanel({
 
 const PROVIDER_LABEL: Record<LLMSettings["provider"], string> = {
   ollama: "로컬 LLM",
+  included: "구독 포함 AI",
   openai: "OpenAI",
   gemini: "Google Gemini",
   claude: "Claude",
@@ -742,6 +749,7 @@ function SettingsPanel({
   const [draft, setDraft] = useState(settings);
   const set = <K extends keyof LLMSettings>(key: K, value: LLMSettings[K]) => setDraft((d) => ({ ...d, [key]: value }));
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const { isPaid } = useSubscription();
 
   const [geminiModels, setGeminiModels] = useState<string[]>([]);
   const [geminiModelsLoading, setGeminiModelsLoading] = useState(false);
@@ -799,12 +807,50 @@ function SettingsPanel({
             </div>
           </div>
 
-          {draft.provider !== "ollama" && (
+          {draft.provider !== "ollama" && draft.provider !== "included" && (
             <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
               ⚠ {PROVIDER_LABEL[draft.provider]} API는 사용량에 따라 요금이 청구될 수 있습니다. 발생하는 비용은 이 API 키의 소유자
               본인 책임이며, 이 앱과 개발자는 그 비용에 대해 어떠한 책임도 지지 않습니다. 사용 전 해당 서비스의 요금제·한도를
               직접 확인하세요.
             </p>
+          )}
+
+          {draft.provider === "included" && (
+            <div className="border-t border-gray-100 pt-4 dark:border-gray-900">
+              {isPaid ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500">
+                    API 키 없이 구독에 포함된 기본 AI를 월 {MONTHLY_CALL_CAP}회까지 바로 씁니다(두 모델 합산). 다 쓰면 안내와 함께
+                    멈추니, 그 뒤엔 다른 탭에서 본인 API 키를 연결하면 계속 쓸 수 있습니다.
+                  </p>
+                  <div>
+                    <FieldLabel>포함 AI 모델</FieldLabel>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {([["openai", "ChatGPT (GPT-4o-mini)"], ["gemini", "Gemini (Flash)"]] as const).map(([value, label]) => (
+                        <button
+                          key={value}
+                          onClick={() => set("includedProvider", value)}
+                          className={`rounded border px-2.5 py-1.5 text-left transition ${
+                            draft.includedProvider === value
+                              ? "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-500 dark:bg-fuchsia-950/30 dark:text-fuchsia-300"
+                              : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded border border-fuchsia-300 bg-fuchsia-50 px-3 py-2 text-xs text-fuchsia-700 dark:border-fuchsia-700 dark:bg-fuchsia-950/30 dark:text-fuchsia-300">
+                  구독자 전용입니다. 키 발급 없이 바로 쓰고 싶다면{" "}
+                  <Link href="/pricing" className="underline">
+                    구독하기 →
+                  </Link>
+                </p>
+              )}
+            </div>
           )}
 
           {draft.provider === "ollama" && (
@@ -2274,7 +2320,7 @@ function InterviewTab({ project, update, model, llm }: TabProps & { model: strin
     setError("");
     setLoading(true);
     update((p) => {
-      (p.chats[personaId] ??= []).push({ role: "author", text });
+      (p.chats[personaId] ??= []).push({ role: "author", text, at: new Date().toISOString() });
     });
     try {
       // 소속 집단 정보: 이름/설명/동료 구성원 이름 + 상위 집단 + 다른 집단과의 관계 + 우리 집단만 아는 외부 인물 (삭제된 집단/인물은 제외)
@@ -2340,8 +2386,8 @@ function InterviewTab({ project, update, model, llm }: TabProps & { model: strin
         llm,
       });
       update((p) => {
-        (p.chats[personaId] ??= []).push({ role: "char", text: data.dialogue, inner: data.inner });
-        for (const s of data.proposed_settings ?? []) p.pending.push({ id: uid(), personaId, text: s });
+        (p.chats[personaId] ??= []).push({ role: "char", text: data.dialogue, inner: data.inner, at: new Date().toISOString() });
+        for (const s of data.proposed_settings ?? []) p.pending.push({ id: uid(), kind: "personaNote", personaId, text: s });
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -2692,6 +2738,22 @@ function StoryTab({
     }
   };
 
+  // 방금 새로 추가된 내용에서 기존 설정에 없던 사실·인물·집단을 뽑아 승인 대기(project.pending)에 올린다.
+  // 승인 전까지는 공식 설정에 영향 없음(PendingTab에서 검토 후 승인). checkConsistency와 같은 정책으로 실패는 조용히 무시.
+  // ponytail: 같은 항목이 승인되기 전에 또 write하면 중복으로 쌓일 수 있음 — 승인 큐가 자주 지저분해지면 그때 중복 제거 추가할 것
+  const extractEntities = async (newText: string) => {
+    try {
+      const data = await postAI("/api/story", { mode: "extract", ...payload(), newText });
+      update((p) => {
+        for (const content of data.facts ?? []) p.pending.push({ id: uid(), kind: "fact", content });
+        for (const per of data.personas ?? []) p.pending.push({ id: uid(), kind: "persona", name: per.name, summary: per.summary });
+        for (const g of data.groups ?? []) p.pending.push({ id: uid(), kind: "group", name: g.name, summary: g.summary });
+      });
+    } catch {
+      // 무시
+    }
+  };
+
   // 항상 storyCurrentId(현재 이어 쓰고 있는 지점) 아래에 새 가지를 붙인다 — 다른 노드를 먼저 골라두면 그 지점에서 새로 갈라짐
   const write = async (dir: string) => {
     const text = dir.trim();
@@ -2705,18 +2767,19 @@ function StoryTab({
     // 챕터를 선택해둔 상태에서 이어 쓰면 새로 추가되는 내용도 그 챕터로 자동 태그된다 ("미분류" 선택 중엔 그대로 미분류로 남음)
     const chapterId = selectedChapterId && selectedChapterId !== UNASSIGNED_CHAPTER ? selectedChapterId : undefined;
     update((p) => {
-      p.story.push({ id: directionId, parentId: p.storyCurrentId, role: "direction", text, chapterId });
+      p.story.push({ id: directionId, parentId: p.storyCurrentId, role: "direction", text, chapterId, at: new Date().toISOString() });
       p.storyCurrentId = directionId;
     });
     try {
       const data = await postAI("/api/story", { mode: "write", ...payload(), direction: text });
       update((p) => {
         const storyId = uid();
-        p.story.push({ id: storyId, parentId: directionId, role: "story", text: data.text, chapterId });
+        p.story.push({ id: storyId, parentId: directionId, role: "story", text: data.text, chapterId, at: new Date().toISOString() });
         p.storyCurrentId = storyId;
       });
       setDirection("");
       checkConsistency(`${text}\n\n${data.text}`); // 실시간 설정 충돌 검사 — 완료를 기다리지 않고 백그라운드로 진행
+      extractEntities(`${text}\n\n${data.text}`); // 새 사실·인물·집단 추출 — 역시 백그라운드로, 승인함 탭에 쌓인다
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -3430,40 +3493,146 @@ function MsgView({
   );
 }
 
+type AiLogEntry = { id: string; at: string | null; kind: "story" | "interview"; label: string; detail: string };
+
+// 이야기 이어쓰기(direction→story)와 인터뷰(author↔char) 기록을 한 줄씩으로 뽑아 시간순으로 합친다.
+// story는 moveNode로 표시 순서(배열 순서)만 바뀔 수 있어 배열 순서를 믿을 수 없으므로, at(생성 시각)로 정렬한다.
+// at이 없는(이 필드가 생기기 전) 기록은 "" 취급 — 맨 앞(가장 오래된 것)으로 몰린다.
+function buildAiLog(project: Project): AiLogEntry[] {
+  const entries: AiLogEntry[] = [];
+
+  for (const node of project.story) {
+    if (node.role !== "story") continue; // story 노드 기준으로 direction+story를 한 항목으로 합침
+    const direction = project.story.find((n) => n.id === node.parentId);
+    entries.push({
+      id: node.id,
+      at: node.at ?? null,
+      kind: "story",
+      label: direction ? `방향: ${direction.text}` : "이어쓰기",
+      detail: node.text,
+    });
+  }
+
+  for (const persona of project.personas) {
+    const chat = project.chats[persona.id] ?? [];
+    chat.forEach((m, i) => {
+      if (m.role !== "author") return;
+      const reply = chat[i + 1]?.role === "char" ? chat[i + 1] : null;
+      entries.push({
+        id: `${persona.id}-${i}`,
+        at: m.at ?? null,
+        kind: "interview",
+        label: `인터뷰 · ${persona.name}`,
+        detail: reply ? `Q. ${m.text}\nA. ${reply.text}` : `Q. ${m.text}`,
+      });
+    });
+  }
+
+  return entries.sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
+}
+
+// 이야기를 쓰거나 인터뷰를 할 때마다 AI가 만든 내용을 시간순으로 모아 보여준다 — 지어낸 지명·인물·사건을
+// 나중에 세계관/사실/캐릭터 등에 반영할지 사람이 훑어볼 수 있게 하는 용도(자동 반영은 아직 안 함).
+function AiLogTab({ project }: { project: Project }) {
+  const entries = buildAiLog(project);
+  if (entries.length === 0) {
+    return <p className="text-sm text-gray-400">아직 기록이 없습니다. 이야기를 이어 쓰거나 인터뷰를 하면 여기에 시간순으로 남습니다.</p>;
+  }
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="text-xs text-gray-500">
+        이야기 이어쓰기와 인터뷰에서 AI가 만든 내용을 시간순으로 모았습니다. 새로 나온 지명·인물·사건이 있으면 여기서 확인하고
+        해당 탭(사실·비밀/캐릭터/집단/관계 등)에 직접 옮겨 적으세요.
+      </p>
+      <ul className="space-y-2">
+        {entries.map((e) => (
+          <li key={e.id} className="rounded border border-gray-200 p-2.5 dark:border-gray-800">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs text-gray-400">
+              <span className={e.kind === "story" ? "text-fuchsia-600 dark:text-fuchsia-400" : "text-sky-600 dark:text-sky-400"}>
+                {e.kind === "story" ? "📖" : "💬"} {e.label}
+              </span>
+              <span>{e.at ? formatDateTime(e.at) : "시간 미상"}</span>
+            </div>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{e.detail}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// kind별로 승인 시 어디로 들어가는지, 목록에 어떻게 보여줄지 한곳에 모음 — lib/store.ts의 Pending 타입 주석 참고
+function pendingLabel(item: Pending, nameOf: (personaId: string) => string): { tag: string; text: string } {
+  switch (item.kind) {
+    case "personaNote":
+      return { tag: nameOf(item.personaId), text: item.text };
+    case "fact":
+      return { tag: "새 사실·비밀", text: item.content };
+    case "persona":
+      return { tag: "새 캐릭터", text: `${item.name} — ${item.summary}` };
+    case "group":
+      return { tag: "새 집단", text: `${item.name} — ${item.summary}` };
+  }
+}
+
+function applyPending(p: Project, item: Pending) {
+  switch (item.kind) {
+    case "personaNote":
+      p.personas.find((x) => x.id === item.personaId)?.notes.push(item.text);
+      break;
+    case "fact":
+      p.facts.push({ id: uid(), content: item.content, access: {} });
+      break;
+    case "persona":
+      p.personas.push({ ...newPersona(item.name), notes: [item.summary] });
+      break;
+    case "group":
+      p.groups.push({ ...newGroup(item.name), description: item.summary });
+      break;
+  }
+}
+
 function PendingTab({ project, update }: TabProps) {
   if (project.pending.length === 0)
-    return <p className="text-sm text-gray-500">승인 대기 중인 설정이 없습니다. AI가 대화 중 만든 새 설정이 여기에 모입니다.</p>;
+    return (
+      <p className="text-sm text-gray-500">
+        승인 대기 중인 설정이 없습니다. 인터뷰 중 나온 즉흥 설정이나, 이야기를 이어 쓰면서 새로 나온 사실·인물·집단이 여기에 모입니다.
+      </p>
+    );
   const nameOf = (id: string) => project.personas.find((p) => p.id === id)?.name ?? "?";
   return (
     <div className="space-y-2">
-      <p className="text-sm text-gray-500">승인한 항목만 캐릭터의 공식 설정에 반영됩니다.</p>
-      {project.pending.map((item) => (
-        <div key={item.id} className="flex items-center justify-between gap-3 rounded border p-3 text-sm">
-          <div>
-            <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-800">{nameOf(item.personaId)}</span>
-            {item.text}
+      <p className="text-sm text-gray-500">승인한 항목만 실제 설정(캐릭터 메모/사실/캐릭터/집단)에 반영됩니다.</p>
+      {project.pending.map((item) => {
+        const { tag, text } = pendingLabel(item, nameOf);
+        return (
+          <div key={item.id} className="flex items-center justify-between gap-3 rounded border p-3 text-sm">
+            <div>
+              <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-800">{tag}</span>
+              {text}
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                onClick={() =>
+                  update((p) => {
+                    applyPending(p, item);
+                    p.pending = p.pending.filter((x) => x.id !== item.id);
+                  })
+                }
+                className="rounded bg-green-600 px-3 py-1 text-white"
+              >
+                승인
+              </button>
+              <button
+                onClick={() => update((p) => void (p.pending = p.pending.filter((x) => x.id !== item.id)))}
+                className="rounded border px-3 py-1"
+              >
+                거절
+              </button>
+            </div>
           </div>
-          <div className="flex shrink-0 gap-2">
-            <button
-              onClick={() =>
-                update((p) => {
-                  p.personas.find((x) => x.id === item.personaId)?.notes.push(item.text);
-                  p.pending = p.pending.filter((x) => x.id !== item.id);
-                })
-              }
-              className="rounded bg-green-600 px-3 py-1 text-white"
-            >
-              승인
-            </button>
-            <button
-              onClick={() => update((p) => void (p.pending = p.pending.filter((x) => x.id !== item.id)))}
-              className="rounded border px-3 py-1"
-            >
-              거절
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

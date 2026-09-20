@@ -72,6 +72,9 @@ export function llmConnectErrorMessage(llm: LLMSettings | undefined): string {
       return `Gemini API에 연결할 수 없습니다 (${settings.geminiUrl || DEFAULT_LLM_SETTINGS.geminiUrl}). 인터넷 연결과 설정의 API 주소·키를 확인하세요.`;
     case "claude":
       return `Claude API에 연결할 수 없습니다 (${settings.claudeUrl || DEFAULT_LLM_SETTINGS.claudeUrl}). 인터넷 연결과 설정의 API 주소·키를 확인하세요.`;
+    case "included":
+      // withIncludedUsage가 openai로 바꾼 뒤에만 여기까지 오므로 정상 흐름에서는 나오지 않는다
+      return "포함 AI 사용량 연결에 실패했습니다. 잠시 후 다시 시도하거나 설정에서 다른 연결 방법을 선택하세요.";
     default:
       // 서버는 ollama를 직접 호출하지 않으므로(항상 브라우저가 직접 호출) 이 분기는 정상 흐름에서 나오지 않는다
       return "로컬 LLM 연결은 이 브라우저가 직접 처리합니다.";

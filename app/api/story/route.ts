@@ -20,6 +20,7 @@ import {
   type World,
 } from "@/lib/store";
 import { buildOllamaRequest, callLLM, isOllamaProvider, llmConnectErrorMessage } from "@/lib/llm";
+import { withIncludedUsage } from "@/lib/includedLlm";
 
 // 서술자 역할 소개 — 시점에 따라 "전지적 작가다"라는 기존 문구를 그대로 못 쓰므로 모드별로 다르게 소개한다
 function narratorRoleLabel(mode: ViewpointMode): string {
@@ -220,6 +221,20 @@ const CHECK_SCHEMA = {
   properties: { issues: { type: "array", items: { type: "string" } } },
   required: ["issues"],
 };
+const NAMED_ITEM_SCHEMA = {
+  type: "object",
+  properties: { name: { type: "string" }, summary: { type: "string" } },
+  required: ["name", "summary"],
+};
+const EXTRACT_SCHEMA = {
+  type: "object",
+  properties: {
+    facts: { type: "array", items: { type: "string" } }, // 새 사실·비밀·지명 등, 한 문장씩
+    personas: { type: "array", items: NAMED_ITEM_SCHEMA }, // 기존 목록에 없던 새 인물
+    groups: { type: "array", items: NAMED_ITEM_SCHEMA }, // 기존 목록에 없던 새 집단
+  },
+  required: ["facts", "personas", "groups"],
+};
 
 export async function POST(req: Request) {
   const {
@@ -242,7 +257,7 @@ export async function POST(req: Request) {
     llm,
     viewpoint,
   } = (await req.json()) as {
-    mode: "suggest" | "write" | "check";
+    mode: "suggest" | "write" | "check" | "extract";
     genre?: Genre;
     world: World;
     personas: Persona[];
@@ -285,15 +300,17 @@ export async function POST(req: Request) {
 
   // 로컬 Ollama는 서버가 대신 호출하지 않는다 — 배포 환경에선 그 "localhost"가 서버 자신을 가리켜 각 사용자의
   // 컴퓨터와 무관해지므로, 요청만 조립해 돌려주고 실제 호출은 항상 사용자의 브라우저가 직접 한다(lib/llm.ts 참고)
-  const respond = async (system: string, schema: object, temperature: number) => {
-    if (isOllamaProvider(llm)) {
-      return NextResponse.json({ __ollamaRelay: buildOllamaRequest(llm, model, system, [], schema, temperature) });
-    }
-    const data = await callLLM(llm, system, [], schema, temperature);
-    return NextResponse.json(data);
-  };
-
   try {
+    // provider가 "included"면 서버의 포함 사용량(로그인·구독·월 상한 확인)으로 대신 채워준다 — lib/includedLlm.ts 참고
+    const llmSettings = await withIncludedUsage(llm);
+    const respond = async (system: string, schema: object, temperature: number) => {
+      if (isOllamaProvider(llmSettings)) {
+        return NextResponse.json({ __ollamaRelay: buildOllamaRequest(llmSettings, model, system, [], schema, temperature) });
+      }
+      const data = await callLLM(llmSettings, system, [], schema, temperature);
+      return NextResponse.json(data);
+    };
+
     if (mode === "check") {
       const viewpointCheckItem =
         vpMode === "omniscient"
@@ -322,6 +339,25 @@ ${newText || "(없음)"}
 
 반드시 JSON으로만 답한다: issues(문제점을 한 문장씩 구체적으로 설명한 문자열 배열, 없으면 빈 배열). 모든 내용은 한국어로 쓴다.`;
       return await respond(system, CHECK_SCHEMA, 0.3);
+    } else if (mode === "extract") {
+      const system = `너는 이 세계관 설정을 관리하는 편집자다. "방금 새로 추가된 내용"을 읽고, 아래 기존 설정에는 아직 없는
+새로운 것만 뽑아내라 — 이미 있는 사실·인물·집단은 절대 다시 넣지 마라. 확실하지 않으면 넣지 마라.
+
+- facts: 새로 드러난 사실·비밀·지명(장소) 등을 한 문장씩. 이미 알려진 내용이면 넣지 마라.
+- personas: 이름이 나왔지만 기존 "등장인물" 목록에 없는 새 인물 — name과 한두 문장 summary.
+- groups: 이름이 나왔지만 기존 "집단" 목록에 없는 새 집단/조직 — name과 한두 문장 summary.
+
+새로운 게 없으면 해당 배열을 빈 배열로 반환하라.
+
+${context}
+
+${storyBlock}
+
+# 방금 새로 추가된 내용
+${newText || "(없음)"}
+
+반드시 JSON으로만 답한다. 모든 내용은 한국어로 쓴다.`;
+      return await respond(system, EXTRACT_SCHEMA, 0.3);
     } else if (mode === "suggest") {
       const system = `너는 ${vpRole}다. 아래 설정을 참고해 다음에 일어날 수 있는, 서로 다른 방향의 전개를 3가지 제안하라.
 각 제안은 1~2문장으로 짧게, 서로 겹치지 않게, 등장인물의 성격·관계·세계관 규칙에 맞아야 한다. 아직 이야기가 없다면 이야기를 시작할 상황을 3가지 제안하라.${

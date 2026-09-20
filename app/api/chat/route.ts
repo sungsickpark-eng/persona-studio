@@ -12,6 +12,7 @@ import {
   type World,
 } from "@/lib/store";
 import { buildOllamaRequest, callLLM, isOllamaProvider, llmConnectErrorMessage } from "@/lib/llm";
+import { withIncludedUsage } from "@/lib/includedLlm";
 
 const STRENGTH: Record<number, string> = {
   1: "설정을 참고만 하되 자유롭게 브레인스토밍을 도와도 된다.",
@@ -217,7 +218,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    const data = await callLLM(llm, system, messages, SCHEMA, 0.8);
+    // provider가 "included"면 서버의 포함 사용량(로그인·구독·월 상한 확인)으로 대신 채워준다 — lib/includedLlm.ts 참고
+    const llmSettings = await withIncludedUsage(llm);
+    const data = await callLLM(llmSettings, system, messages, SCHEMA, 0.8);
     return NextResponse.json(data);
   } catch (e) {
     const msg = e instanceof TypeError ? llmConnectErrorMessage(llm) : e instanceof Error ? e.message : String(e);

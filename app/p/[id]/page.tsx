@@ -320,7 +320,9 @@ export default function Workspace() {
       {modelPanelOpen && (
         <ModelPanel current={model} ollamaUrl={llmSettings.ollamaUrl} onChoose={chooseModel} onClose={() => setModelPanelOpen(false)} />
       )}
-      {settingsOpen && <SettingsPanel settings={llmSettings} onSave={saveLlm} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsPanel settings={llmSettings} model={model} onSave={saveLlm} onClose={() => setSettingsOpen(false)} />
+      )}
 
       <nav className="ws-tab-rail mt-3 flex shrink-0 flex-wrap gap-1">
         {TABS.map((t) => (
@@ -829,10 +831,13 @@ function CopyButton({ text }: { text: string }) {
 // 캐릭터 시뮬레이션·이야기 생성에 어떤 AI를 쓸지 고르는 패널. 로컬 LLM의 "어떤 모델"은 기존 ModelPanel이 그대로 담당
 function SettingsPanel({
   settings,
+  model,
   onSave,
   onClose,
 }: {
   settings: LLMSettings;
+  model: string; // 지금 선택된 로컬 Ollama 모델 이름 — 어떤 모델을 쓸지 고르는 건 별도 ModelPanel(헤더의 "모델" 버튼) 담당,
+  // 여기서는 로컬 AI를 골랐을 때 지금 뭐가 선택돼 있는지만 보여준다
   onSave: (s: LLMSettings) => void;
   onClose: () => void;
 }) {
@@ -960,6 +965,10 @@ function SettingsPanel({
 
           {draft.provider === "ollama" && (
             <div className="border-t border-gray-100 pt-4 dark:border-gray-900">
+              <p className="mb-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                지금 선택된 모델: <span className="font-semibold">{model || "기본값"}</span> — 상단 헤더의 &quot;모델&quot; 버튼에서 다른
+                걸로 바꾸거나 새로 받을 수 있습니다.
+              </p>
               <FieldLabel>로컬 LLM(Ollama) 서버 주소</FieldLabel>
               <input
                 className={fieldInputCls}
@@ -969,7 +978,7 @@ function SettingsPanel({
               />
               <p className="mt-1 text-xs text-gray-400">
                 이 주소로는 항상 <b>이 브라우저를 보고 있는 사람의 컴퓨터</b>가 직접 접속합니다(사이트가 배포돼 있어도 마찬가지) — 그러니 보통은
-                기본값 그대로 두면 됩니다. 어떤 모델을 쓸지는 상단 헤더의 &quot;모델&quot; 버튼에서 고르거나 받습니다.
+                기본값 그대로 두면 됩니다.
               </p>
               {origin && !origin.startsWith("http://localhost") && (
                 <div className="mt-1 text-xs text-gray-400">

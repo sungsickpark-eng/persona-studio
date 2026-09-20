@@ -178,6 +178,15 @@ export default function Workspace() {
     return () => window.removeEventListener("keydown", onKey);
   }, [tab]);
 
+  // 장르/세계관/사실·비밀/캐릭터/집단/관계 탭 전용 되돌리기 — 최대 15단계, 페이지를 새로고침하면 사라지는
+  // 세션 한정 기록(이야기 탭의 pushUndo와 같은 방식). 텍스트 입력은 한 글자 바뀔 때마다 update가 불려서 그대로
+  // 스냅샷을 찍으면 한 단어 타이핑에 되돌리기 칸을 다 써버리므로, SETTINGS_UNDO_GROUP_MS 안에 이어지는 수정은
+  // 하나로 묶고(멈췄다가 다시 고치기 시작할 때만 새 단계가 생김) 스냅샷은 바뀌기 "전" 상태를 남긴다.
+  const SETTINGS_UNDO_MAX = 15;
+  const SETTINGS_UNDO_GROUP_MS = 1500;
+  const [settingsUndoStack, setSettingsUndoStack] = useState<Project[]>([]);
+  const lastSettingsEditAtRef = useRef(0);
+
   if (!project)
     return (
       <main className="p-8">
@@ -194,6 +203,35 @@ export default function Workspace() {
     saveProjects(all);
     setProject(next);
   };
+
+  const settingsUpdate = (fn: (p: Project) => void) => {
+    const next = structuredClone(loadProjects().find((p) => p.id === project.id) ?? project);
+    const now = Date.now();
+    if (now - lastSettingsEditAtRef.current > SETTINGS_UNDO_GROUP_MS) {
+      const before = structuredClone(next);
+      setSettingsUndoStack((stack) => {
+        const nextStack = [...stack, before];
+        return nextStack.length > SETTINGS_UNDO_MAX ? nextStack.slice(nextStack.length - SETTINGS_UNDO_MAX) : nextStack;
+      });
+    }
+    lastSettingsEditAtRef.current = now;
+    fn(next);
+    const all = loadProjects().map((p) => (p.id === next.id ? next : p));
+    saveProjects(all);
+    setProject(next);
+  };
+  const undoSettings = () => {
+    setSettingsUndoStack((stack) => {
+      if (stack.length === 0) return stack;
+      const last = stack[stack.length - 1];
+      const all = loadProjects().map((p) => (p.id === last.id ? last : p));
+      saveProjects(all);
+      setProject(last);
+      lastSettingsEditAtRef.current = 0; // 되돌린 직후 바로 다시 고치면 새 되돌리기 단계로 잡히게(방금 되돌린 걸 덮어써 묶이지 않도록)
+      return stack.slice(0, -1);
+    });
+  };
+  const SETTINGS_UNDO_TABS = new Set(["장르", "세계관", "사실·비밀", "캐릭터", "집단", "관계"]);
 
   // 이야기가 바뀔 때마다 StoryTab이 호출 — 연결된 저장 폴더가 있고 권한이 살아있으면 조용히 프로젝트 전체를 다시 저장.
   // 권한이 끊겼거나 폴더 연결이 아예 없으면 알림 없이 그냥 건너뜀(자동 저장이 매번 실패 팝업을 띄우면 방해만 됨).
@@ -354,17 +392,29 @@ export default function Workspace() {
           >
             <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-800">
               <h2 className="text-lg font-bold">{tab}</h2>
-              <button onClick={() => setTab(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                닫기 ✕
-              </button>
+              <div className="flex items-center gap-3">
+                {SETTINGS_UNDO_TABS.has(tab) && (
+                  <button
+                    onClick={undoSettings}
+                    disabled={settingsUndoStack.length === 0}
+                    title="이 창에서 방금 바꾼 내용을 한 단계 되돌립니다 (최대 15단계, 새로고침하면 사라짐)"
+                    className="whitespace-nowrap rounded border px-2.5 py-1 text-xs hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:hover:bg-gray-900"
+                  >
+                    ↩ 되돌리기 ({settingsUndoStack.length})
+                  </button>
+                )}
+                <button onClick={() => setTab(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                  닫기 ✕
+                </button>
+              </div>
             </div>
             <div className="overflow-y-auto p-5">
-              {tab === "장르" && <GenreTab project={project} update={update} />}
-              {tab === "세계관" && <WorldTab project={project} update={update} />}
-              {tab === "사실·비밀" && <FactsTab project={project} update={update} />}
-              {tab === "캐릭터" && <PersonasTab project={project} update={update} focusId={focusId} />}
-              {tab === "집단" && <GroupsTab project={project} update={update} focusId={focusId} />}
-              {tab === "관계" && <RelationsTab project={project} update={update} />}
+              {tab === "장르" && <GenreTab project={project} update={settingsUpdate} />}
+              {tab === "세계관" && <WorldTab project={project} update={settingsUpdate} />}
+              {tab === "사실·비밀" && <FactsTab project={project} update={settingsUpdate} />}
+              {tab === "캐릭터" && <PersonasTab project={project} update={settingsUpdate} focusId={focusId} />}
+              {tab === "집단" && <GroupsTab project={project} update={settingsUpdate} focusId={focusId} />}
+              {tab === "관계" && <RelationsTab project={project} update={settingsUpdate} />}
               {tab === "인터뷰" && <InterviewTab project={project} update={update} model={model} llm={llmSettings} />}
               {tab === "떡밥" && (
                 <ForeshadowsTab

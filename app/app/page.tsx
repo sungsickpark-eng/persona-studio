@@ -1,12 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { loadProjects, newProject, saveProjects, type Project } from "@/lib/store";
 import { importObsidianVault } from "@/lib/import";
 import { saveProjectToDir } from "@/lib/export";
 import { getStoredRootHandle, hasWritePermission, pickRootFolder, reconnectRootFolder } from "@/lib/rootFolder";
 import type { FSDirHandle } from "@/lib/fs-types";
 import ThemeToggle from "@/components/ThemeToggle";
+import AuthBadge from "@/components/AuthBadge";
+import LoginPicker from "@/components/LoginPicker";
+import { useAuth, useSubscription } from "@/components/AuthProvider";
+import { pullAndMergeCloudProjects } from "@/lib/cloudSync";
 
 export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -19,6 +24,44 @@ export default function Home() {
   const [rootPermission, setRootPermission] = useState<"granted" | "lost" | "unknown">("unknown");
 
   useEffect(() => setProjects(loadProjects()), []);
+
+  // 구독이 켜지는 순간(로그인 직후 포함) 클라우드 전용 프로젝트를 로컬로 1회 합침 — 무료/미구독 사용자는 안 탐
+  const router = useRouter();
+  const { user } = useAuth();
+  const { isPaid, cloudSyncEnabled, setCloudSyncEnabled } = useSubscription();
+  const [loginPickerOpen, setLoginPickerOpen] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState("");
+  useEffect(() => {
+    if (!user || !isPaid) return;
+    pullAndMergeCloudProjects(user.id)
+      .then(setProjects)
+      .catch(() => {});
+  }, [user, isPaid]);
+
+  // "클라우드에 업로드" — 안 했으면 로그인부터, 로그인했지만 미구독이면 요금제 페이지로, 구독 중이면 바로 지금 로컬 전체를 올림
+  const uploadToCloud = async () => {
+    if (!user) {
+      setLoginPickerOpen(true);
+      return;
+    }
+    if (!isPaid) {
+      router.push("/pricing");
+      return;
+    }
+    setUploadBusy(true);
+    setUploadMsg("");
+    try {
+      const merged = await pullAndMergeCloudProjects(user.id);
+      setProjects(merged);
+      setUploadMsg("클라우드에 업로드했습니다.");
+    } catch (e) {
+      setUploadMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploadBusy(false);
+    }
+  };
+
   useEffect(() => {
     getStoredRootHandle().then(async (h) => {
       if (!h) return;
@@ -27,14 +70,35 @@ export default function Home() {
     });
   }, []);
 
-  const connectRoot = async () => {
+  // "저장 폴더 선택/변경"과 "불러오기"를 한 번의 폴더 선택으로 합친다 — 폴더를 고르면 그 안의 기존 내보내기를
+  // 바로 불러오는 동시에, 앞으로의 자동 저장 대상으로도 연결된다
+  const connectFolder = async () => {
+    setImporting(true);
+    setImportMsg("");
     try {
       const h = await pickRootFolder();
       setRootHandle(h);
       setRootPermission("granted");
+
+      const found = await importObsidianVault(h);
+      const existingNames = new Set(projects.map((p) => p.name));
+      const added = found.filter((p) => !existingNames.has(p.name));
+      if (added.length) {
+        const next = [...projects, ...added];
+        saveProjects(next);
+        setProjects(next);
+      }
+      const skipped = found.length - added.length;
+      setImportMsg(
+        added.length
+          ? `연결됨: ${h.name} · ${added.length}개 프로젝트를 불러왔습니다.${skipped ? ` (이름이 같은 ${skipped}개는 건너뜀)` : ""}`
+          : `연결됨: ${h.name}`,
+      );
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") return; // 폴더 선택 취소
-      alert(e instanceof Error ? e.message : String(e));
+      setImportMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -53,35 +117,17 @@ export default function Home() {
     if (rootHandle && rootPermission === "granted") saveProjectToDir(rootHandle, created).catch(() => {});
   };
 
-  const importFolder = async () => {
-    setImporting(true);
-    setImportMsg("");
-    try {
-      const found = await importObsidianVault();
-      const existingNames = new Set(projects.map((p) => p.name));
-      const added = found.filter((p) => !existingNames.has(p.name));
-      if (added.length) {
-        const next = [...projects, ...added];
-        saveProjects(next);
-        setProjects(next);
-      }
-      const skipped = found.length - added.length;
-      setImportMsg(
-        found.length === 0
-          ? "이 폴더 아래에서 내보내기 폴더를 찾지 못했습니다."
-          : `${added.length}개 프로젝트를 불러왔습니다.${skipped ? ` (이름이 같은 ${skipped}개는 건너뜀)` : ""}`,
-      );
-    } catch (e) {
-      if (e instanceof Error && e.name === "AbortError") return; // 폴더 선택 취소
-      setImportMsg(e instanceof Error ? e.message : String(e));
-    } finally {
-      setImporting(false);
-    }
-  };
-
   const remove = (id: string) => {
     if (!confirm("이 프로젝트를 삭제할까요?")) return;
     const next = projects.filter((p) => p.id !== id);
+    saveProjects(next);
+    setProjects(next);
+  };
+
+  const rename = (id: string, currentName: string) => {
+    const nextName = window.prompt("새 이름을 입력하세요", currentName)?.trim();
+    if (!nextName || nextName === currentName) return;
+    const next = projects.map((p) => (p.id === id ? { ...p, name: nextName } : p));
     saveProjects(next);
     setProjects(next);
   };
@@ -103,7 +149,10 @@ export default function Home() {
             </Link>
           </p>
         </div>
-        <ThemeToggle className="shrink-0 rounded-full border border-gray-200 px-2.5 py-1.5 text-sm transition hover:border-fuchsia-400 dark:border-gray-800" />
+        <div className="flex shrink-0 items-center gap-2">
+          <AuthBadge />
+          <ThemeToggle className="shrink-0 rounded-full border border-gray-200 px-2.5 py-1.5 text-sm transition hover:border-fuchsia-400 dark:border-gray-800" />
+        </div>
       </header>
 
       <div className="studio-panel">
@@ -125,17 +174,11 @@ export default function Home() {
 
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-dashed border-gray-200 pt-4 text-xs dark:border-gray-800">
           <button
-            onClick={importFolder}
+            onClick={connectFolder}
             disabled={importing}
             className="rounded border border-gray-200 px-2.5 py-1 text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-900"
           >
-            {importing ? "불러오는 중…" : "저장 폴더에서 불러오기"}
-          </button>
-          <button
-            onClick={connectRoot}
-            className="rounded border border-gray-200 px-2.5 py-1 text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-900"
-          >
-            {rootHandle ? "저장 폴더 변경" : "저장 폴더 선택"}
+            {importing ? "연결하는 중…" : rootHandle ? "저장 폴더 변경" : "저장 폴더 연결"}
           </button>
           {rootHandle && rootPermission === "granted" && (
             <span className="text-emerald-600 dark:text-emerald-400">연결됨: {rootHandle.name}</span>
@@ -151,9 +194,31 @@ export default function Home() {
         </div>
         {importMsg && <p className="mt-2 text-xs text-gray-500">{importMsg}</p>}
         <p className="mt-2 text-xs text-gray-400">
-          저장 폴더를 연결하면 새 프로젝트가 그 안에 자동으로 생기고, 이야기가 바뀔 때마다 자동 저장됩니다.
+          저장 폴더를 연결하면 그 안의 기존 프로젝트를 불러오고, 앞으로 이야기가 바뀔 때마다 자동 저장됩니다.
         </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-dashed border-gray-200 pt-4 text-xs dark:border-gray-800">
+          <button
+            onClick={uploadToCloud}
+            disabled={uploadBusy}
+            className="rounded border border-fuchsia-300 px-2.5 py-1 text-fuchsia-600 hover:bg-fuchsia-50 disabled:opacity-40 dark:border-fuchsia-800 dark:text-fuchsia-400 dark:hover:bg-fuchsia-950/30"
+          >
+            {uploadBusy ? "업로드 중…" : "클라우드에 업로드"}
+          </button>
+          <label className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+            <input
+              type="checkbox"
+              checked={cloudSyncEnabled}
+              onChange={(e) => setCloudSyncEnabled(e.target.checked)}
+              className="h-3.5 w-3.5 accent-fuchsia-600"
+            />
+            클라우드와 로컬 동시 저장{!isPaid && " (구독 필요)"}
+          </label>
+        </div>
+        {uploadMsg && <p className="mt-2 text-xs text-gray-500">{uploadMsg}</p>}
       </div>
+
+      {loginPickerOpen && <LoginPicker onClose={() => setLoginPickerOpen(false)} />}
 
       {projects.length === 0 ? (
         <div className="studio-empty mt-8">
@@ -177,9 +242,14 @@ export default function Home() {
                   <span className="studio-mono text-[10px] text-fuchsia-500/70">NO. {String(i + 1).padStart(3, "0")}</span>
                   <h2 className="studio-serif text-lg font-bold">{p.name}</h2>
                 </div>
-                <button onClick={() => remove(p.id)} className="relative z-10 shrink-0 text-xs text-red-400 hover:text-red-600">
-                  삭제
-                </button>
+                <div className="relative z-10 flex shrink-0 gap-2 text-xs">
+                  <button onClick={() => rename(p.id, p.name)} className="text-gray-400 hover:text-fuchsia-600 dark:hover:text-fuchsia-400">
+                    이름변경
+                  </button>
+                  <button onClick={() => remove(p.id)} className="text-red-400 hover:text-red-600">
+                    삭제
+                  </button>
+                </div>
               </div>
               <p className="mt-2.5 text-xs text-gray-400">
                 캐릭터 {p.personas.length} · 승인대기 {p.pending.length}

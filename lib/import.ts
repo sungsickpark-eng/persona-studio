@@ -19,7 +19,7 @@ import {
   type World,
 } from "./store";
 import { safe } from "./export";
-import { getDirectoryPicker, type FSDirHandle } from "./fs-types";
+import type { FSDirHandle } from "./fs-types";
 
 // export.ts의 buildAppData가 만드는 구조 — 이름 기반 참조라 되불러올 때 새로 생성되는 id와 무관하게 맞물린다
 type AppData = {
@@ -365,12 +365,10 @@ export async function parseProjectFolder(dir: FSDirHandle): Promise<Project | nu
   };
 }
 
-// 폴더 선택 창을 띄워, 그 바로 아래에 있는 내보내기 폴더들(각각 하나의 프로젝트)을 전부 복원한다.
+// 이미 연결된(또는 방금 고른) 폴더 바로 아래에 있는 내보내기 폴더들(각각 하나의 프로젝트)을 전부 복원한다.
 // 내보내기 폴더가 아닌 하위 폴더(예: 무관한 다른 Obsidian 노트 폴더)는 조용히 건너뛴다.
-export async function importObsidianVault(): Promise<Project[]> {
-  const picker = getDirectoryPicker();
-  if (!picker) throw new Error("이 브라우저는 폴더 불러오기를 지원하지 않습니다. Chrome 또는 Edge를 사용하세요.");
-  const root = await picker();
+// 폴더 선택은 lib/rootFolder.ts의 pickRootFolder가 맡는다 — "저장 폴더 연결"과 "불러오기"가 같은 폴더 선택 한 번으로 합쳐지도록.
+export async function importObsidianVault(root: FSDirHandle): Promise<Project[]> {
   const projects: Project[] = [];
   for await (const entry of root.values()) {
     if (entry.kind !== "directory") continue;

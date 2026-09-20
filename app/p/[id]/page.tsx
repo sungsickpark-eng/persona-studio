@@ -46,7 +46,7 @@ import type { FSDirHandle } from "@/lib/fs-types";
 import RelationshipGraph from "./RelationshipGraph";
 import ThemeToggle from "@/components/ThemeToggle";
 import AuthBadge from "@/components/AuthBadge";
-import { useSubscription } from "@/components/AuthProvider";
+import { useAuth, useSubscription } from "@/components/AuthProvider";
 import { MONTHLY_CALL_CAP } from "@/lib/pricing";
 
 const TABS = ["장르", "세계관", "사실·비밀", "캐릭터", "집단", "관계", "인터뷰", "떡밥", "AI 기록", "승인함", "삭제됨"] as const;
@@ -126,6 +126,10 @@ const WORKSPACE_CSS = `
 
 export default function Workspace() {
   const { id } = useParams<{ id: string }>();
+  // 새로고침 직후엔 로그인 상태가 아직 확정 전이라 로컬 저장소가 계정별로 어느 쪽인지(lib/deviceOwner.ts) 모른다 —
+  // user가 확정되면 아래 두 useEffect가 다시 읽도록 deps에 넣어야, 새로고침 시 "프로젝트를 찾을 수 없음"으로
+  // 잘못 떨어지지 않는다
+  const { user, loading: authLoading } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   // null = 팝업 닫힘(관계도 지도만 표시). 값이 있으면 그 탭이 팝업으로 뜬다.
   const [tab, setTab] = useState<Tab | null>(null);
@@ -166,14 +170,14 @@ export default function Workspace() {
 
   useEffect(() => {
     setProject(loadProjects().find((p) => p.id === id) ?? null);
-  }, [id]);
+  }, [id, user]);
 
   useEffect(() => {
     getStoredRootHandle().then(async (h) => {
       rootHandleRef.current = h;
-      if (h) setFolderStatus((await hasWritePermission(h)) ? "connected" : "lost");
+      setFolderStatus(h ? (await hasWritePermission(h)) ? "connected" : "lost" : "none");
     });
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!tab) return;
@@ -191,12 +195,16 @@ export default function Workspace() {
   const [settingsUndoStack, setSettingsUndoStack] = useState<Project[]>([]);
   const lastSettingsEditAtRef = useRef(0);
 
-  if (!project)
+  // 로그인 상태가 아직 확정 전(특히 새로고침 직후)에는 로컬 저장소가 계정별 어느 쪽인지 몰라 프로젝트를 못 찾을 수
+  // 있다 — 그 사이엔 "찾을 수 없음"을 띄우지 않고 잠깐 기다린다(로그인 확정되면 위 useEffect가 다시 읽음)
+  if (!project) {
+    if (authLoading) return <main className="p-8 text-sm text-gray-400">불러오는 중…</main>;
     return (
       <main className="p-8">
         프로젝트를 찾을 수 없습니다. <Link href="/app" className="underline">홈으로</Link>
       </main>
     );
+  }
 
   // 모든 변경은 이 함수를 거쳐 localStorage에 즉시 반영.
   // 클로저의 낡은 project가 아니라 저장소의 최신 상태를 기준으로 변경한다 (비동기 응답 경합 방지)

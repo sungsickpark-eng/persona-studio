@@ -335,9 +335,9 @@ export type Project = {
   viewpoint: Viewpoint; // 이야기 쓰기 서술 시점
 };
 
-const KEY = "persona-studio";
-// 계정별로 저장소를 분리할 때만(lib/deviceOwner.ts) KEY 뒤에 접미사가 붙는다 — 그 외(비로그인, 이 기기의 첫 로그인
-// 계정)에는 항상 KEY 그대로라 기존 로컬 데이터가 그대로 보인다
+const KEY = "persona-studio"; // 비로그인 상태의 공용 저장소
+// 로그인 중이면(lib/deviceOwner.ts) 계정마다 별도 키(KEY:userId)를 쓴다 — 비로그인일 때의 로컬 이야기가 로그인한다고
+// 그 계정 것으로 딸려 들어오지 않고, 계정끼리도 서로의 로컬 데이터를 보거나 덮어쓰지 않는다
 const projectsKey = () => KEY + ownerSuffix();
 
 export const uid = () => Math.random().toString(36).slice(2, 10);

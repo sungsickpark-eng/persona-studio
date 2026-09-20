@@ -8,8 +8,8 @@ import { ownerSuffix } from "./deviceOwner";
 const DB_NAME = "persona-studio-fs";
 const STORE = "handles";
 const ROOT_KEY = "root";
-// 프로젝트 목록(lib/store.ts)과 같은 규칙 — 이 기기에서 다른 계정으로 로그인하면 저장 폴더 연결도 따로 가져서,
-// 그 계정 화면에 이전 계정이 연결해둔 폴더가 그대로 보이는 일이 없게 한다
+// 프로젝트 목록(lib/store.ts)과 같은 규칙 — 로그인하면 계정별로 저장 폴더 연결도 따로 가진다. 비로그인일 때 연결해둔
+// 폴더가 로그인한다고 그 계정 것으로 이어지지 않고, 계정끼리도 서로 연결해둔 폴더가 보이지 않는다
 const rootKey = () => ROOT_KEY + ownerSuffix();
 
 function openDb(): Promise<IDBDatabase> {

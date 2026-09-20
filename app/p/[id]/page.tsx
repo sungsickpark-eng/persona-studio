@@ -761,6 +761,15 @@ const PROVIDER_LABEL: Record<LLMSettings["provider"], string> = {
   claude: "Claude",
 };
 
+// SettingsPanel의 "사용할 AI" 선택지를 성격이 다른 3묶음으로 나눠 보여준다 — 특히 "로컬"과 "구독형"은 겉보기엔
+// 버튼 하나 차이지만 완전히 다르다(로컬은 이 컴퓨터에서 직접 실행, 구독형은 서버가 대신 호출하고 월 상한이 있음).
+// 나란히 낱개 버튼으로만 늘어놓으면 이 차이가 안 보여서 헷갈리기 쉬우므로 제목·설명을 붙인 그룹으로 구분한다.
+const PROVIDER_GROUPS: { title: string; hint: string; providers: LLMSettings["provider"][] }[] = [
+  { title: "로컬 AI", hint: "이 컴퓨터에서 직접 실행 — 무료, 계정·인터넷 연결 불필요", providers: ["ollama"] },
+  { title: "구독형 AI", hint: "구독자에게 포함된 서버 AI — 키 발급 없이 바로 사용, 월 사용량 상한 있음", providers: ["included"] },
+  { title: "본인 API 키로 연결", hint: "각 서비스 키를 직접 입력 — 사용량만큼 요금이 청구될 수 있음", providers: ["openai", "gemini", "claude"] },
+];
+
 // 1인칭 두 모드는 "누구의 1인칭인지" 서술자 캐릭터 지정이 별도로 필요함 (라벨 자체는 lib/store.ts의 VIEWPOINT_LABEL — 서버 검사 프롬프트와 공유)
 const VIEWPOINT_NEEDS_NARRATOR = (mode: ViewpointMode) => mode === "firstProtagonist" || mode === "firstObserver";
 
@@ -842,19 +851,34 @@ function SettingsPanel({
 
           <div>
             <FieldLabel>사용할 AI</FieldLabel>
-            <div className="grid grid-cols-2 gap-1.5">
-              {(Object.entries(PROVIDER_LABEL) as [LLMSettings["provider"], string][]).map(([value, label]) => (
-                <button
-                  key={value}
-                  onClick={() => set("provider", value)}
-                  className={`rounded border px-2.5 py-1.5 text-left transition ${
-                    draft.provider === value
-                      ? "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-500 dark:bg-fuchsia-950/30 dark:text-fuchsia-300"
-                      : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
-                  }`}
-                >
-                  {label}
-                </button>
+            <div className="space-y-3">
+              {PROVIDER_GROUPS.map((group) => (
+                <div key={group.title}>
+                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    {group.title}
+                    {group.title === "구독형 AI" && !isPaid && (
+                      <span className="ml-1.5 rounded-full bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-normal text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300">
+                        구독자 전용
+                      </span>
+                    )}
+                  </p>
+                  <p className="mb-1.5 text-[11px] text-gray-400">{group.hint}</p>
+                  <div className={group.providers.length > 1 ? "grid grid-cols-2 gap-1.5" : "grid grid-cols-1 gap-1.5"}>
+                    {group.providers.map((value) => (
+                      <button
+                        key={value}
+                        onClick={() => set("provider", value)}
+                        className={`rounded border px-2.5 py-1.5 text-left transition ${
+                          draft.provider === value
+                            ? "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-500 dark:bg-fuchsia-950/30 dark:text-fuchsia-300"
+                            : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
+                        }`}
+                      >
+                        {PROVIDER_LABEL[value]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

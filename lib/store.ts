@@ -1,6 +1,7 @@
 // MVP 저장소: localStorage. 유료 사용자는 saveProjects 끝에서 lib/cloudSync.ts를 통해 Supabase로도 동기화된다
 // (무료 사용자는 이 파일만으로 예전과 동일하게 동작 — cloudSync는 로그인+구독 상태가 아니면 조용히 아무것도 안 함)
 import { queueCloudSync } from "./cloudSync";
+import { ownerSuffix } from "./deviceOwner";
 export type Access =
   | { status: "knows"; revealChapterId?: string } // revealChapterId 없으면 처음부터 앎, 있으면 그 챕터부터 앎(중간에 알게 됨)
   | { status: "unknown" } // 끝까지 모름
@@ -335,13 +336,16 @@ export type Project = {
 };
 
 const KEY = "persona-studio";
+// 계정별로 저장소를 분리할 때만(lib/deviceOwner.ts) KEY 뒤에 접미사가 붙는다 — 그 외(비로그인, 이 기기의 첫 로그인
+// 계정)에는 항상 KEY 그대로라 기존 로컬 데이터가 그대로 보인다
+const projectsKey = () => KEY + ownerSuffix();
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
 export function loadProjects(): Project[] {
   if (typeof window === "undefined") return [];
   try {
-    const projects: Project[] = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    const projects: Project[] = JSON.parse(localStorage.getItem(projectsKey()) ?? "[]");
     // 구버전 데이터 마이그레이션
     for (const p of projects) {
       p.groups ??= [];
@@ -424,7 +428,7 @@ export function loadProjects(): Project[] {
 }
 
 export function saveProjects(projects: Project[]) {
-  localStorage.setItem(KEY, JSON.stringify(projects));
+  localStorage.setItem(projectsKey(), JSON.stringify(projects));
   queueCloudSync(projects);
 }
 

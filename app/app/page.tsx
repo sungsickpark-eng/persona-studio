@@ -23,8 +23,6 @@ export default function Home() {
   const [rootHandle, setRootHandle] = useState<FSDirHandle | null>(null);
   const [rootPermission, setRootPermission] = useState<"granted" | "lost" | "unknown">("unknown");
 
-  useEffect(() => setProjects(loadProjects()), []);
-
   // 구독이 켜지는 순간(로그인 직후 포함) 클라우드 전용 프로젝트를 로컬로 1회 합침 — 무료/미구독 사용자는 안 탐
   const router = useRouter();
   const { user } = useAuth();
@@ -32,6 +30,12 @@ export default function Home() {
   const [loginPickerOpen, setLoginPickerOpen] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
+
+  // user가 바뀔 때마다(로그인 직후 포함) 다시 읽는다 — 로컬 저장소는 계정별로 나뉘어 있어서(lib/deviceOwner.ts),
+  // 로그인 여부가 확정되기 전에 한 번만 읽으면 다른 계정의 저장소를 잠깐 보여줄 수 있다
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setProjects(loadProjects()), [user]);
+
   useEffect(() => {
     if (!user || !isPaid) return;
     pullAndMergeCloudProjects(user.id)
@@ -62,13 +66,19 @@ export default function Home() {
     }
   };
 
+  // user가 바뀌면 다시 읽는다 — 저장 폴더 연결도 계정별로 나뉘어 있어서(lib/deviceOwner.ts), 안 그러면 이전 계정이
+  // 연결해둔 폴더가 다른 계정 화면에 잠깐 그대로 보일 수 있다
   useEffect(() => {
     getStoredRootHandle().then(async (h) => {
-      if (!h) return;
+      if (!h) {
+        setRootHandle(null);
+        setRootPermission("unknown");
+        return;
+      }
       setRootHandle(h);
       setRootPermission((await hasWritePermission(h)) ? "granted" : "lost");
     });
-  }, []);
+  }, [user]);
 
   // "저장 폴더 선택/변경"과 "불러오기"를 한 번의 폴더 선택으로 합친다 — 폴더를 고르면 그 안의 기존 내보내기를
   // 바로 불러오는 동시에, 앞으로의 자동 저장 대상으로도 연결된다

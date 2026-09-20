@@ -7,6 +7,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { loadCloudSyncPref, pullAndMergeCloudProjects, saveCloudSyncPref, setCloudSyncEligibility } from "@/lib/cloudSync";
+import { setActiveOwner } from "@/lib/deviceOwner";
 import type { PlanId } from "@/lib/pricing";
 
 type SubStatus = "loading" | "none" | "inactive" | "active";
@@ -54,11 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     supabase.auth.getSession().then(({ data }) => {
       if (!cancelled) {
+        // setUser와 같은 시점에 동기적으로 불러야 한다 — lib/deviceOwner.ts 상단 주석 참고(effect로 따로 빼면 다른
+        // 컴포넌트의 effect와 순서를 다퉈 레이스가 생길 수 있음)
+        setActiveOwner(data.session?.user?.id ?? null);
         setUser(data.session?.user ?? null);
         setAuthLoading(false);
       }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setActiveOwner(session?.user?.id ?? null);
       setUser(session?.user ?? null);
       setAuthLoading(false);
     });

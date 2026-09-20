@@ -119,6 +119,7 @@ const WORKSPACE_CSS = `
      필요해 고정값(60vh)을 줌 — 이야기 쓰기 쪽은 내용에 맞춰 자연스러운 높이로 늘어나면 됨 */
   @media (max-width: 639px) {
     .ws-graph-wrap { flex: none !important; height: 60vh !important; min-height: 320px; }
+    .ws-graph-wrap.is-minimized { height: auto !important; min-height: 0; }
     .ws-story-wrap { flex: none !important; height: auto !important; }
   }
 `;
@@ -133,6 +134,9 @@ export default function Workspace() {
   const [jumpNodeId, setJumpNodeId] = useState<string | null>(null);
   // 관계도가 차지하는 세로 비율(나머지는 이야기 쓰기창) — 구분선을 드래그해 조절
   const [graphRatio, setGraphRatio] = useState(0.45);
+  // 관계도를 최소화하면 그 비율을 무시하고 이야기 쓰기창이 남는 공간을 전부 가져간다 — graphRatio 자체는
+  // 그대로 기억해뒀다가 다시 펼치면 이전 비율로 돌아옴
+  const [graphMinimized, setGraphMinimized] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
   // 연결된 저장 폴더(메인 화면에서 설정) — 있으면 이야기가 바뀔 때마다 그 폴더에 조용히 자동 저장.
   // folderStatus는 우측 상단 안내 배지용 — "none"이면 애초에 폴더를 안 연결한 것, "lost"면 연결은 해뒀는데 권한이 끊긴 것
@@ -343,31 +347,56 @@ export default function Workspace() {
           스타일(드래그로 조절되는 값이라 Tailwind 클래스만으론 반응형 처리가 안 돼)은 WORKSPACE_CSS의
           .ws-graph-wrap/.ws-story-wrap 모바일 미디어 쿼리로 무효화함 */}
       <div ref={splitRef} className="mt-3 flex flex-col sm:min-h-0 sm:flex-1 sm:overflow-hidden">
-        {/* 틀(테두리) 크기는 고정 — 확대/축소는 그래프 안쪽에서 내용 자체를 줌하는 방식 (그래프 우상단 +/- 버튼) */}
-        <div className="ws-graph-wrap min-h-0" style={{ flexGrow: graphRatio, flexBasis: 0 }}>
-          <RelationshipGraph
-            project={project}
-            update={update}
-            onSelect={(type, entityId) => {
-              setTab(type === "persona" ? "캐릭터" : "집단");
-              setFocusId(entityId);
-            }}
-          />
+        {/* 틀(테두리) 크기는 고정 — 확대/축소는 그래프 안쪽에서 내용 자체를 줌하는 방식 (그래프 우상단 +/- 버튼).
+            최소화 중엔 graphRatio를 무시하고 작은 고정 높이로 접어, 이야기 쓰기창이 남는 공간을 가져가게 한다 */}
+        <div
+          className={`ws-graph-wrap relative min-h-0 ${graphMinimized ? "is-minimized mb-3" : ""}`}
+          style={graphMinimized ? { flexGrow: 0, flexBasis: "auto" } : { flexGrow: graphRatio, flexBasis: 0 }}
+        >
+          {graphMinimized ? (
+            <button
+              onClick={() => setGraphMinimized(false)}
+              title="관계도 펼치기"
+              className="flex h-12 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-900"
+            >
+              ▸ 관계도 펼치기
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setGraphMinimized(true)}
+                title="관계도 최소화 — 이야기 쓰기창을 넓게 씁니다"
+                className="absolute left-3 top-3 z-10 rounded border border-gray-300 bg-white/90 px-2 py-1 text-xs text-gray-600 shadow-sm transition hover:bg-white dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-300"
+              >
+                ▾ 최소화
+              </button>
+              <RelationshipGraph
+                project={project}
+                update={update}
+                onSelect={(type, entityId) => {
+                  setTab(type === "persona" ? "캐릭터" : "집단");
+                  setFocusId(entityId);
+                }}
+              />
+            </>
+          )}
         </div>
         {/* 관계도와 이야기 쓰기창 사이 구분선 — 드래그해 두 영역의 세로 비율을 조절 (모바일에선 더 이상 분할 비율
-            개념이 없어 숨김) */}
-        <div
-          onPointerDown={(e) => (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)}
-          onPointerMove={onResizePointerMove}
-          title="드래그해서 관계도와 이야기 쓰기창의 비율을 조절하세요"
-          className="my-2 hidden h-3 shrink-0 cursor-row-resize items-center justify-center sm:flex"
-        >
-          <div className="h-1 w-16 rounded-full bg-gray-300 dark:bg-gray-700" />
-        </div>
+            개념이 없어 숨김, 최소화 중에는 조절할 비율이 없으니 숨김) */}
+        {!graphMinimized && (
+          <div
+            onPointerDown={(e) => (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)}
+            onPointerMove={onResizePointerMove}
+            title="드래그해서 관계도와 이야기 쓰기창의 비율을 조절하세요"
+            className="my-2 hidden h-3 shrink-0 cursor-row-resize items-center justify-center sm:flex"
+          >
+            <div className="h-1 w-16 rounded-full bg-gray-300 dark:bg-gray-700" />
+          </div>
+        )}
         {/* 관계도 아래에 항상 떠 있는 이야기 쓰기창 — 팝업을 열지 않고 바로 글을 이어 쓸 수 있음 */}
         <div
           className="ws-story-wrap mt-3 min-h-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:mt-0 dark:border-gray-800 dark:bg-gray-950"
-          style={{ flexGrow: 1 - graphRatio, flexBasis: 0 }}
+          style={{ flexGrow: graphMinimized ? 1 : 1 - graphRatio, flexBasis: 0 }}
         >
           <StoryTab
             project={project}

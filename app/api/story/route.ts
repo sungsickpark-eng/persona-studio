@@ -309,7 +309,18 @@ export async function POST(req: Request) {
       if (isOllamaProvider(llmSettings)) {
         return NextResponse.json({ __ollamaRelay: buildOllamaRequest(llmSettings, model, system, [], schema, temperature) });
       }
-      const data = await callLLM(llmSettings, system, [], schema, temperature);
+      let data: unknown;
+      try {
+        data = await callLLM(llmSettings, system, [], schema, temperature);
+      } catch (e) {
+        // 포함 AI 호출 실패 시 원본 업스트림 에러(보낸 키 일부를 그대로 되돌려주는 provider도 있음)를 그대로
+        // 클라이언트에 보내면 서버가 대신 쓰는 키가 새어나갈 수 있다 — 본인 키 경로는 자기 키라 그대로 보여줘도 안전
+        if (llm?.provider === "included") {
+          console.error("포함 AI 호출 실패:", e);
+          throw new Error("포함 AI 연결에 실패했습니다. 잠시 후 다시 시도하거나 설정에서 다른 연결 방법을 선택하세요.");
+        }
+        throw e;
+      }
       return NextResponse.json(data);
     };
 

@@ -5,7 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/app";
+  // next는 로그인 성공 후 돌아갈 위치 — 이 사이트 안의 경로만 허용한다("/"로 시작, "//"는 거부해 protocol-relative
+  // 트릭으로 다른 사이트로 여는 오픈 리다이렉트를 막음). 그 외는 전부 기본값(/app)으로.
+  const nextParam = searchParams.get("next") ?? "/app";
+  const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/app";
 
   if (code) {
     const supabase = await createClient();

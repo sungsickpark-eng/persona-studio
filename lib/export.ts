@@ -1,6 +1,6 @@
 // Obsidian 볼트 구조로 저장: 캐릭터/집단을 노트별 개별 파일로 만들고 서로 [[위키링크]]로 연결.
 // 연결된 저장 폴더(rootFolder.ts) 아래에 프로젝트명 폴더를 만들어 파일을 직접 쓴다 (File System Access API, Chrome/Edge 전용).
-import { chapterTreeOrder, groupTreeOrder, storyActivePath, type Project, type StoryNode } from "./store";
+import { chapterTreeOrder, groupTreeOrder, personaGenderLabel, storyActivePath, type Project, type StoryNode } from "./store";
 import type { FSDirHandle } from "./fs-types";
 
 export const safe = (name: string) => name.replace(/[\\/:*?"<>|#^[\]]/g, " ").trim() || "무제";
@@ -87,12 +87,14 @@ export function buildExportEntries(p: Project): ExportEntry[] {
     const myGroups = groups.filter((g) => g.memberIds.includes(per.id));
     if (myGroups.length) lines.push(`소속: ${myGroups.map((g) => `[[${safe(g.name)}]]`).join(", ")}`, "");
     lines.push(
+      `- 성별: ${personaGenderLabel(per)}`,
       `- 나이: ${link(per.age)}`,
       `- 직업: ${link(per.occupation)}`,
       `- 외형: ${link(per.appearance)}`,
       `- 성격: ${link(per.personality)}`,
       `- 가치관: ${link(per.values)}`,
       `- 말투: ${link(per.speech)}`,
+      `- 이성관: ${link(per.oppositeSexView)}`,
       `- 배경: ${link(per.backstory)}`,
       `- 목표: ${link(per.goals)}`,
       `- 과거 지향: ${link(per.past)}`,

@@ -4,6 +4,7 @@
 import {
   DEFAULT_GENRE,
   DEFAULT_VIEWPOINT,
+  GENDER_LABEL,
   uid,
   type Chapter,
   type Fact,
@@ -11,6 +12,7 @@ import {
   type Group,
   type Msg,
   type Persona,
+  type PersonaGender,
   type PersonaGroupRelation,
   type Project,
   type Relation,
@@ -18,6 +20,12 @@ import {
   type ViewpointMode,
   type World,
 } from "./store";
+
+// export.ts가 personaGenderLabel()로 쓴 걸 되돌린다 — "남"/"여"면 그 값, 그 외(직접 입력한 값이나 "미정")는 "custom"
+function parseGender(label: string): { gender: PersonaGender; genderCustom: string } {
+  const known = (Object.entries(GENDER_LABEL) as [PersonaGender, string][]).find(([, l]) => l === label);
+  return known && known[0] !== "custom" ? { gender: known[0], genderCustom: "" } : { gender: "custom", genderCustom: label };
+}
 import { safe } from "./export";
 import type { FSDirHandle } from "./fs-types";
 
@@ -129,12 +137,14 @@ async function parsePersona(text: string, designDir: FSDirHandle | null): Promis
   const persona: Persona = {
     id: uid(),
     name,
+    ...parseGender(bulletValue(lines, "성별")),
     age: bulletValue(lines, "나이"),
     occupation: bulletValue(lines, "직업"),
     appearance: bulletValue(lines, "외형"),
     personality: bulletValue(lines, "성격"),
     values: bulletValue(lines, "가치관"),
     speech: bulletValue(lines, "말투"),
+    oppositeSexView: bulletValue(lines, "이성관"),
     backstory: bulletValue(lines, "배경"),
     goals: bulletValue(lines, "목표"),
     past: bulletValue(lines, "과거 지향"),

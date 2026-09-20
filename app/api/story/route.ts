@@ -4,6 +4,7 @@ import {
   chapterOrderIndex,
   DEFAULT_VIEWPOINT,
   genreLabel,
+  personaGenderLabel,
   relationLabel,
   resolveChapterViewpoint,
   type Fact,
@@ -100,11 +101,12 @@ function buildWorldContext(
           .map((f) => f.access[per.id])
           .filter((a): a is { status: "misbelieves"; misbelief: string } => a?.status === "misbelieves")
           .map((a) => a.misbelief);
-        return `- ${per.name} (나이: ${per.age || "미정"}, 직업: ${per.occupation || "미정"})${
+        return `- ${per.name} (성별: ${personaGenderLabel(per)}, 나이: ${per.age || "미정"}, 직업: ${per.occupation || "미정"})${
           notYetIntroduced(per) ? " — ⚠ 아직 이야기에 등장하지 않음: 지금 쓰는 지점에서는 이 인물을 등장시키거나 언급하지 마라" : ""
         }
   외형: ${per.appearance || "미정"}
   성격: ${per.personality || "미정"} / 가치관: ${per.values || "미정"} / 말투: ${per.speech || "미정"}
+  이성관: ${per.oppositeSexView || "미정"}
   배경 서사: ${per.backstory || "미정"}
   현재 목표: ${per.goals || "미정"} / 과거 지향: ${per.past || "미정"} / 현재 지향: ${per.present || "미정"} / 미래 지향: ${per.future || "미정"}
   금기/트리거: ${per.triggers || "미정"}

@@ -9,6 +9,7 @@ import {
   findPersonaGroupRelation,
   findRelation,
   formatDateTime,
+  GENDER_LABEL,
   groupTreeOrder,
   loadLLMSettings,
   loadProjects,
@@ -33,6 +34,7 @@ import {
   type Msg,
   type Pending,
   type Persona,
+  type PersonaGender,
   type Project,
   type Relation,
   type StoryNode,
@@ -1549,6 +1551,7 @@ function PersonasTab({ project, update, focusId }: TabProps & { focusId?: string
     ["personality", "성격", '예: "겉으론 냉정하지만 약자에게 약함"'],
     ["values", "가치관/신념", "무엇을 중요하게 여기는지, 절대 타협 못 하는 선"],
     ["speech", "말투/화법", "존댓말/반말, 자주 쓰는 표현, 침묵하는 상황"],
+    ["oppositeSexView", "이성관", "이성을 대하는 태도·가치관, 이상형, 연애 성향 등"],
     ["backstory", "배경 서사", "과거 사건 중 현재 행동에 영향을 주는 것"],
     ["goals", "현재 목표/욕망", "이 시나리오 안에서 원하는 것"],
     ["past", "과거 지향점", "과거에 무엇을 추구하며 살았는가"],
@@ -1647,6 +1650,38 @@ function PersonasTab({ project, update, focusId }: TabProps & { focusId?: string
                     })
                   }
                 />
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium">성별</span>
+                <select
+                  className="mt-1 w-full rounded border p-2 text-sm dark:bg-transparent"
+                  value={per.gender}
+                  onChange={(e) =>
+                    update((p) => {
+                      const t = p.personas.find((x) => x.id === per.id);
+                      if (t) t.gender = e.target.value as PersonaGender;
+                    })
+                  }
+                >
+                  {(Object.entries(GENDER_LABEL) as [PersonaGender, string][]).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                {per.gender === "custom" && (
+                  <input
+                    className="mt-1 w-full rounded border p-2 text-sm"
+                    placeholder="직접 입력 (예: 논바이너리, 밝히지 않음)"
+                    value={per.genderCustom}
+                    onChange={(e) =>
+                      update((p) => {
+                        const t = p.personas.find((x) => x.id === per.id);
+                        if (t) t.genderCustom = e.target.value;
+                      })
+                    }
+                  />
+                )}
               </label>
               {basicFields.map(([key, label]) => (
                 <label key={key} className="block">

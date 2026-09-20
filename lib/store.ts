@@ -13,15 +13,27 @@ export type Fact = {
   access: Record<string, Access>; // personaId -> 공개 범위 (없으면 unknown = 작가만 앎)
 };
 
+// "custom"이면 genderCustom(자유 텍스트)을 대신 쓴다 — 남/여로 나누기 애매하거나 밝히고 싶지 않은 경우
+export type PersonaGender = "male" | "female" | "custom";
+export const GENDER_LABEL: Record<PersonaGender, string> = { male: "남", female: "여", custom: "설정" };
+
+// gender가 "custom"이면 genderCustom(비어있으면 "미정")을, 아니면 GENDER_LABEL을 보여준다 — 프롬프트/화면 표시 공용
+export function personaGenderLabel(p: Pick<Persona, "gender" | "genderCustom">): string {
+  return p.gender === "custom" ? p.genderCustom || "미정" : GENDER_LABEL[p.gender];
+}
+
 export type Persona = {
   id: string;
   name: string;
+  gender: PersonaGender;
+  genderCustom: string; // gender가 "custom"일 때만 사용
   age: string;
   occupation: string;
   appearance: string; // 외형 요약
   personality: string;
   values: string;
   speech: string;
+  oppositeSexView: string; // 이성관 — 이성을 대하는 태도·가치관, 이상형, 연애 성향 등
   backstory: string;
   goals: string;
   // 시간 흐름에 따라 이 캐릭터가 지향한/지향하는 것 (배경 서사·현재 목표와 별개로, 삶의 방향성 자체를 기록)
@@ -414,6 +426,9 @@ export function loadProjects(): Project[] {
         legacy.age ??= "";
         legacy.occupation ??= "";
         delete legacy.basics;
+        legacy.gender ??= "custom"; // 구버전 데이터엔 성별이 없었음 — 아무 값도 안 정한 "설정" 상태로 시작
+        legacy.genderCustom ??= "";
+        legacy.oppositeSexView ??= "";
         legacy.past ??= "";
         legacy.present ??= "";
         legacy.future ??= "";
@@ -546,12 +561,15 @@ export function newPersona(name: string): Persona {
   return {
     id: uid(),
     name,
+    gender: "custom",
+    genderCustom: "",
     age: "",
     occupation: "",
     appearance: "",
     personality: "",
     values: "",
     speech: "",
+    oppositeSexView: "",
     backstory: "",
     goals: "",
     past: "",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   genreLabel,
   isRevealed,
+  personaGenderLabel,
   relationLabel,
   type Chapter,
   type Fact,
@@ -82,12 +83,14 @@ ${genreBlock}
 - 속어 & 표현: ${world.slang || "미정"}
 
 # 캐릭터: ${persona.name}
+- 성별: ${personaGenderLabel(persona)}
 - 나이: ${persona.age || "미정"}
 - 직업: ${persona.occupation || "미정"}
 - 외형: ${persona.appearance || "미정"}
 - 성격: ${persona.personality}
 - 가치관/신념: ${persona.values}
 - 말투/화법: ${persona.speech}
+- 이성관: ${persona.oppositeSexView || "미정"}
 - 배경 서사: ${persona.backstory}
 - 현재 목표/욕망: ${persona.goals}
 - 과거에 지향한 것: ${persona.past || "미정"}

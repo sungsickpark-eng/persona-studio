@@ -21,9 +21,9 @@ const project: Project = {
     religion: "", morals: "", slang: "",
   },
   personas: [
-    { id: "a", name: "민수", age: "32", occupation: "형사", appearance: "", personality: "영희를 경계한다", values: "", speech: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: ["작가가 승인한 설정"], createdAt: "", introChapterId: null, image: tinyJpeg, imageWidth: 800, imageHeight: 600, imagePosition: { x: 60, y: 30 } },
-    { id: "b", name: "영희", age: "", occupation: "", appearance: "", personality: "", values: "", speech: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [], createdAt: "", introChapterId: null },
-    { id: "c", name: "탈퇴자", age: "", occupation: "", appearance: "", personality: "", values: "", speech: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [], createdAt: "", introChapterId: null, deleted: true },
+    { id: "a", name: "민수", gender: "male", genderCustom: "", age: "32", occupation: "형사", appearance: "", personality: "영희를 경계한다", values: "", speech: "", oppositeSexView: "영희를 믿지 못함", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: ["작가가 승인한 설정"], createdAt: "", introChapterId: null, image: tinyJpeg, imageWidth: 800, imageHeight: 600, imagePosition: { x: 60, y: 30 } },
+    { id: "b", name: "영희", gender: "custom", genderCustom: "", age: "", occupation: "", appearance: "", personality: "", values: "", speech: "", oppositeSexView: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [], createdAt: "", introChapterId: null },
+    { id: "c", name: "탈퇴자", gender: "custom", genderCustom: "", age: "", occupation: "", appearance: "", personality: "", values: "", speech: "", oppositeSexView: "", backstory: "", goals: "", past: "", present: "", future: "", triggers: "", notes: [], createdAt: "", introChapterId: null, deleted: true },
   ],
   groups: [
     { id: "g1", name: "형사팀", description: "민수가 속한 조직", memberIds: ["a"] },
@@ -118,6 +118,8 @@ assert.strictEqual(restored!.world.overview, "현대 서울", "세계관 필드 
 
 const minsu = restored!.personas.find((p) => p.name === "민수");
 assert(minsu, "민수가 복원되지 않음");
+assert.strictEqual(minsu!.gender, "male", "성별 필드 복원 실패");
+assert.strictEqual(minsu!.oppositeSexView, "영희를 믿지 못함", "이성관 필드 복원 실패");
 assert.strictEqual(minsu!.age, "32", "나이 필드 복원 실패");
 assert.strictEqual(minsu!.occupation, "형사", "직업 필드 복원 실패");
 assert.strictEqual(minsu!.personality, "영희를 경계한다", "위키링크 복원(민수) 실패 — [[영희]]가 그대로 남으면 안 됨");
@@ -149,6 +151,7 @@ assert(fact, "사실 복원 실패");
 assert.strictEqual(fact.content, "준호가 범인이다", "사실 내용 복원 실패");
 assert.deepStrictEqual(fact.access[minsu!.id], { status: "misbelieves", misbelief: "영희가 범인이다" }, "오해 상태 복원 실패");
 const younghee = restored!.personas.find((p) => p.name === "영희")!;
+assert.strictEqual(younghee.gender, "custom", "성별 미설정 기본값 복원 실패");
 assert.deepStrictEqual(fact.access[younghee.id], { status: "knows" }, "앎 상태 복원 실패");
 
 assert.strictEqual(restored!.story.length, 2, "이야기 노드 개수 복원 실패");

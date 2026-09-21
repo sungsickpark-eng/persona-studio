@@ -9,7 +9,7 @@ import LoginPicker from "@/components/LoginPicker";
 
 export default function AuthBadge({ className = "" }: { className?: string }) {
   const { user, loading, isAdmin, signOut } = useAuth();
-  const { status, plan, deactivateMockSubscription } = useSubscription();
+  const { status, plan, creditBalance, deactivateMockSubscription } = useSubscription();
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -60,9 +60,10 @@ export default function AuthBadge({ className = "" }: { className?: string }) {
           </span>
           <Link
             href="/pricing#credits"
+            title="크레딧 구매"
             className="rounded-full border border-fuchsia-300 px-2.5 py-1 text-fuchsia-600 transition hover:bg-fuchsia-50 dark:border-fuchsia-800 dark:text-fuchsia-400 dark:hover:bg-fuchsia-950/30"
           >
-            크레딧 구매
+            크레딧 {creditBalance !== null ? creditBalance.toLocaleString("ko-KR") : "…"}개
           </Link>
           <button onClick={cancel} disabled={busy} className="text-gray-400 underline hover:text-gray-600 disabled:opacity-40">
             해지(테스트)

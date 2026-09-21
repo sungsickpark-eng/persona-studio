@@ -3,7 +3,7 @@
 // 로그인 후에는 월간/연간을 골라 결제한다. NEXT_PUBLIC_NICEPAY_CLIENT_KEY가 설정돼 있으면 나이스페이로 실결제하고
 // (app/api/nicepay/auth/route.ts가 서버 승인 후 구독을 반영), 아니면 지금처럼 목업 결제로 대체한다
 // (app/api/billing/mock/route.ts — 나이스페이 키 없이도 로컬 개발이 막히지 않게 하려는 용도).
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, useSubscription } from "@/components/AuthProvider";
@@ -17,25 +17,10 @@ const NICEPAY_CLIENT_KEY = process.env.NEXT_PUBLIC_NICEPAY_CLIENT_KEY;
 export default function PricingPage() {
   const router = useRouter();
   const { user, loading: authLoading, signInWithGoogle, signInWithKakao } = useAuth();
-  const { status, plan: currentPlan, activateMockSubscription } = useSubscription();
+  const { status, plan: currentPlan, creditBalance, refreshCredits, activateMockSubscription } = useSubscription();
   const [selected, setSelected] = useState<PlanId>("monthly");
   const [busy, setBusy] = useState(false);
   const [creditBusy, setCreditBusy] = useState<CreditPackId | null>(null);
-  const [creditBalance, setCreditBalance] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (status !== "active") return;
-    let cancelled = false;
-    fetch("/api/credits")
-      .then((res) => res.json())
-      .then((d: { balance: number }) => {
-        if (!cancelled) setCreditBalance(d.balance);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [status]);
 
   const payWithNicePay = async (orderId: string, amount: number, goodsName: string, returnUrl: string) => {
     const supabase = createClient();
@@ -100,7 +85,7 @@ export default function PricingPage() {
           body: JSON.stringify({ action: "buyCredits", pack }),
         });
         if (!res.ok) throw new Error((await res.json()).error ?? "구매에 실패했습니다.");
-        setCreditBalance((b) => (b ?? 0) + CREDIT_PACKS[pack].credits);
+        await refreshCredits();
       }
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));

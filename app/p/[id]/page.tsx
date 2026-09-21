@@ -862,7 +862,7 @@ function SettingsPanel({
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const set = <K extends keyof LLMSettings>(key: K, value: LLMSettings[K]) => setDraft((d) => ({ ...d, [key]: value }));
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const { isPaid } = useSubscription();
+  const { isPaid, creditBalance } = useSubscription();
 
   const [geminiModels, setGeminiModels] = useState<string[]>([]);
   const [geminiModelsLoading, setGeminiModelsLoading] = useState(false);
@@ -943,6 +943,12 @@ function SettingsPanel({
                               크레딧을 추가 구매
                             </Link>
                             하거나 다른 탭에서 본인 API 키를 연결하면 계속 쓸 수 있습니다.
+                            {creditBalance !== null && (
+                              <>
+                                {" "}
+                                보유 크레딧: <span className="font-semibold text-fuchsia-600 dark:text-fuchsia-400">{creditBalance.toLocaleString("ko-KR")}개</span>
+                              </>
+                            )}
                           </p>
                           <div>
                             <FieldLabel>포함 AI 모델</FieldLabel>

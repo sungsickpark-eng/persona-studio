@@ -3,7 +3,7 @@
 // 마케팅 랜딩 페이지까지 함께 감싸도 안전하다(app/layout.tsx 참고).
 // Supabase 환경변수가 없는 환경(클라우드 저장 미설정)에서도 앱이 죽지 않도록, 클라이언트 생성은 여기서 한 번만
 // try 해보고 실패하면 "로그인 기능 자체가 없는 상태"로 조용히 빠진다 — 무료 로컬 전용 사용에는 영향 없음.
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { loadCloudSyncPref, pullAndMergeCloudProjects, saveCloudSyncPref, setCloudSyncEligibility } from "@/lib/cloudSync";
@@ -18,6 +18,8 @@ type AuthCtx = {
   isAdmin: boolean;
   subStatus: SubStatus;
   subPlan: PlanId | null;
+  creditBalance: number | null;
+  refreshCredits: () => Promise<void>;
   cloudSyncEnabled: boolean;
   setCloudSyncEnabled: (enabled: boolean) => void;
   signInWithGoogle: () => Promise<void>;
@@ -42,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [subStatus, setSubStatus] = useState<SubStatus>("loading");
   const [subPlan, setSubPlan] = useState<PlanId | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [cloudSyncEnabled, setCloudSyncEnabledState] = useState<boolean>(() => loadCloudSyncPref());
 
   useEffect(() => {
@@ -119,6 +122,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase, user]);
 
+  // 보유 크레딧(lib/pricing.ts의 CREDIT_PACKS를 사서 쌓아둔 잔액).
+  useEffect(() => {
+    if (!supabase || !user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCreditBalance(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("credit_balance")
+      .select("balance")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setCreditBalance(data?.balance ?? 0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, user]);
+
+  // 구매 직후에도 최신값을 다시 읽을 수 있도록 별도로 노출한다(app/pricing/page.tsx가 결제 성공 후 호출) — 위 effect와
+  // 똑같은 조회를 하지만, 이벤트 핸들러에서 부르는 함수라 set-state-in-effect 린트 규칙과 무관하다.
+  const fetchCredits = useCallback(async () => {
+    if (!supabase || !user) {
+      setCreditBalance(null);
+      return;
+    }
+    const { data } = await supabase.from("credit_balance").select("balance").eq("user_id", user.id).maybeSingle();
+    setCreditBalance(data?.balance ?? 0);
+  }, [supabase, user]);
+
   // 클라우드 동기화가 실제로 켜지는 조건을 한곳에서만 판단한다: 로그인 + 구독중 + 로컬 "동시 저장" 설정이 켜져 있을 때.
   // (로그인/구독 상태를 바꾸는 다른 곳에서 개별적으로 챙길 필요 없이, 셋 중 뭐가 바뀌든 여기서 자동으로 다시 계산됨)
   useEffect(() => {
@@ -132,6 +167,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin,
       subStatus,
       subPlan,
+      creditBalance,
+      refreshCredits: fetchCredits,
       cloudSyncEnabled,
       setCloudSyncEnabled: (enabled: boolean) => {
         saveCloudSyncPref(enabled);
@@ -170,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSubPlan(null);
       },
     }),
-    [supabase, user, authLoading, isAdmin, subStatus, subPlan, cloudSyncEnabled],
+    [supabase, user, authLoading, isAdmin, subStatus, subPlan, creditBalance, fetchCredits, cloudSyncEnabled],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -188,11 +225,22 @@ export function useAuth() {
 }
 
 export function useSubscription() {
-  const { subStatus, subPlan, cloudSyncEnabled, setCloudSyncEnabled, activateMockSubscription, deactivateMockSubscription } = useAuthCtx();
+  const {
+    subStatus,
+    subPlan,
+    creditBalance,
+    refreshCredits,
+    cloudSyncEnabled,
+    setCloudSyncEnabled,
+    activateMockSubscription,
+    deactivateMockSubscription,
+  } = useAuthCtx();
   return {
     status: subStatus,
     plan: subPlan,
     isPaid: subStatus === "active",
+    creditBalance,
+    refreshCredits,
     cloudSyncEnabled,
     setCloudSyncEnabled,
     activateMockSubscription,

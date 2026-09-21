@@ -904,10 +904,10 @@ function SettingsPanel({
 
           <div>
             <FieldLabel>사용할 AI</FieldLabel>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {PROVIDER_GROUPS.map((group) => (
                 <div key={group.title}>
-                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                  <p className="text-base font-bold text-gray-900 dark:text-gray-100">
                     {group.title}
                     {group.title === "구독형 AI" && !isPaid && (
                       <span className="ml-1.5 rounded-full bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-normal text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300">

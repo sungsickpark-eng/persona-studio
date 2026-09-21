@@ -136,38 +136,6 @@ export default function PricingPage() {
           <Link href="/app" className="mt-3 inline-block text-sm text-fuchsia-600 hover:underline dark:text-fuchsia-400">
             프로젝트 목록으로 가기 →
           </Link>
-
-          <div id="credits" className="mt-6 scroll-mt-6 border-t border-gray-100 pt-5 dark:border-gray-900">
-            <h2 className="text-sm font-bold">크레딧 추가 구매</h2>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              월 포함 AI 사용량을 다 썼을 때, 다음 달까지 기다리지 않고 바로 이어서 쓸 수 있습니다. 구매한 크레딧은 이월되며
-              한 번 사용에 1크레딧이 듭니다.
-              {creditBalance !== null && (
-                <>
-                  {" "}
-                  현재 보유: <span className="font-semibold text-fuchsia-600 dark:text-fuchsia-400">{creditBalance.toLocaleString("ko-KR")}개</span>
-                </>
-              )}
-            </p>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {Object.values(CREDIT_PACKS).map((pack) => (
-                <div key={pack.id} className="rounded-md border border-gray-200 p-3 text-center dark:border-gray-800">
-                  <p className="text-sm font-semibold">{pack.label}</p>
-                  <p className="mt-1 text-xs text-gray-400 line-through">{pack.listPriceKrw.toLocaleString("ko-KR")}원</p>
-                  <p className="studio-serif text-lg font-bold text-fuchsia-600 dark:text-fuchsia-400">
-                    {pack.priceKrw.toLocaleString("ko-KR")}원
-                  </p>
-                  <button
-                    onClick={() => buyCredits(pack.id)}
-                    disabled={creditBusy !== null}
-                    className="mt-2 w-full rounded-md border border-fuchsia-300 px-2 py-1.5 text-xs font-medium text-fuchsia-700 transition hover:bg-fuchsia-50 disabled:opacity-40 dark:border-fuchsia-700 dark:text-fuchsia-300 dark:hover:bg-fuchsia-950/30"
-                  >
-                    {creditBusy === pack.id ? "처리 중…" : "구매"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       ) : (
         <>
@@ -242,6 +210,38 @@ export default function PricingPage() {
           </p>
         </>
       )}
+
+      <div id="credits" className="studio-panel mt-6 scroll-mt-6">
+        <h2 className="text-sm font-bold">크레딧 추가 구매</h2>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          월 포함 AI 사용량을 다 썼을 때, 다음 달까지 기다리지 않고 바로 이어서 쓸 수 있습니다. 구매한 크레딧은 이월되며 한 번
+          사용에 1크레딧이 듭니다.
+          {status === "active" && creditBalance !== null && (
+            <>
+              {" "}
+              현재 보유: <span className="font-semibold text-fuchsia-600 dark:text-fuchsia-400">{creditBalance.toLocaleString("ko-KR")}개</span>
+            </>
+          )}
+          {status !== "active" && " 구독자 전용 추가 상품이라, 먼저 위 요금제를 구독해야 구매할 수 있습니다."}
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {Object.values(CREDIT_PACKS).map((pack) => (
+            <div key={pack.id} className="rounded-md border border-gray-200 p-3 text-center dark:border-gray-800">
+              <p className="text-sm font-semibold">{pack.label}</p>
+              <p className="mt-1 text-xs text-gray-400 line-through">{pack.listPriceKrw.toLocaleString("ko-KR")}원</p>
+              <p className="studio-serif text-lg font-bold text-fuchsia-600 dark:text-fuchsia-400">{pack.priceKrw.toLocaleString("ko-KR")}원</p>
+              <button
+                onClick={() => buyCredits(pack.id)}
+                disabled={status !== "active" || creditBusy !== null}
+                title={status !== "active" ? "구독 후 구매할 수 있습니다" : undefined}
+                className="mt-2 w-full rounded-md border border-fuchsia-300 px-2 py-1.5 text-xs font-medium text-fuchsia-700 transition hover:bg-fuchsia-50 disabled:opacity-40 dark:border-fuchsia-700 dark:text-fuchsia-300 dark:hover:bg-fuchsia-950/30"
+              >
+                {creditBusy === pack.id ? "처리 중…" : "구매"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <style>{`.studio-serif { font-family: "Nanum Myeongjo", "Apple Myungjo", Georgia, "Noto Serif KR", serif; letter-spacing: -0.01em; } .studio-panel { border: 1px solid rgba(120, 113, 130, 0.18); border-radius: 12px; padding: 24px; background: color-mix(in srgb, currentColor 3%, transparent); }`}</style>
     </main>

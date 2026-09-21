@@ -137,7 +137,7 @@ export default function PricingPage() {
             프로젝트 목록으로 가기 →
           </Link>
 
-          <div className="mt-6 border-t border-gray-100 pt-5 dark:border-gray-900">
+          <div id="credits" className="mt-6 scroll-mt-6 border-t border-gray-100 pt-5 dark:border-gray-900">
             <h2 className="text-sm font-bold">크레딧 추가 구매</h2>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               월 포함 AI 사용량을 다 썼을 때, 다음 달까지 기다리지 않고 바로 이어서 쓸 수 있습니다. 구매한 크레딧은 이월되며

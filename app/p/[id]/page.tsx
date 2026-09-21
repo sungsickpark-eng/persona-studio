@@ -938,7 +938,11 @@ function SettingsPanel({
                         <div className="space-y-2">
                           <p className="text-xs text-gray-500">
                             API 키 없이 구독에 포함된 기본 AI를 월 {MONTHLY_CALL_CAP}회까지 바로 씁니다(두 모델 합산). 다 쓰면
-                            안내와 함께 멈추니, 그 뒤엔 다른 탭에서 본인 API 키를 연결하면 계속 쓸 수 있습니다.
+                            안내와 함께 멈추니, 그 뒤엔{" "}
+                            <Link href="/pricing#credits" className="underline">
+                              크레딧을 추가 구매
+                            </Link>
+                            하거나 다른 탭에서 본인 API 키를 연결하면 계속 쓸 수 있습니다.
                           </p>
                           <div>
                             <FieldLabel>포함 AI 모델</FieldLabel>

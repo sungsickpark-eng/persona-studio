@@ -58,6 +58,12 @@ export default function AuthBadge({ className = "" }: { className?: string }) {
           <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
             구독 중{plan && ` · ${PLANS[plan].label}`}
           </span>
+          <Link
+            href="/pricing#credits"
+            className="rounded-full border border-fuchsia-300 px-2.5 py-1 text-fuchsia-600 transition hover:bg-fuchsia-50 dark:border-fuchsia-800 dark:text-fuchsia-400 dark:hover:bg-fuchsia-950/30"
+          >
+            크레딧 구매
+          </Link>
           <button onClick={cancel} disabled={busy} className="text-gray-400 underline hover:text-gray-600 disabled:opacity-40">
             해지(테스트)
           </button>

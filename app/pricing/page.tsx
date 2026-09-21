@@ -3,13 +3,13 @@
 // 로그인 후에는 월간/연간을 골라 결제한다. NEXT_PUBLIC_NICEPAY_CLIENT_KEY가 설정돼 있으면 나이스페이로 실결제하고
 // (app/api/nicepay/auth/route.ts가 서버 승인 후 구독을 반영), 아니면 지금처럼 목업 결제로 대체한다
 // (app/api/billing/mock/route.ts — 나이스페이 키 없이도 로컬 개발이 막히지 않게 하려는 용도).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, useSubscription } from "@/components/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
 import { loadNicePay, requestNicePay } from "@/lib/nicepay";
-import { PLANS, PLAN_FEATURES, type PlanId } from "@/lib/pricing";
+import { CREDIT_PACKS, PLANS, PLAN_FEATURES, PROMO_LABEL, PROMO_PERCENT_OFF, type CreditPackId, type PlanId } from "@/lib/pricing";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const NICEPAY_CLIENT_KEY = process.env.NEXT_PUBLIC_NICEPAY_CLIENT_KEY;
@@ -20,8 +20,24 @@ export default function PricingPage() {
   const { status, plan: currentPlan, activateMockSubscription } = useSubscription();
   const [selected, setSelected] = useState<PlanId>("monthly");
   const [busy, setBusy] = useState(false);
+  const [creditBusy, setCreditBusy] = useState<CreditPackId | null>(null);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
 
-  const payWithNicePay = async (plan: PlanId) => {
+  useEffect(() => {
+    if (status !== "active") return;
+    let cancelled = false;
+    fetch("/api/credits")
+      .then((res) => res.json())
+      .then((d: { balance: number }) => {
+        if (!cancelled) setCreditBalance(d.balance);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
+  const payWithNicePay = async (orderId: string, amount: number, goodsName: string, returnUrl: string) => {
     const supabase = createClient();
     const {
       data: { session },
@@ -34,14 +50,13 @@ export default function PricingPage() {
       throw new Error("결제 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
     }
 
-    const returnUrl = `${location.origin}/api/nicepay/auth?token=${encodeURIComponent(session.access_token)}&plan=${plan}`;
     requestNicePay({
       clientId: NICEPAY_CLIENT_KEY!,
       method: "card",
-      orderId: `sub_${plan}_${Date.now()}`,
-      amount: PLANS[plan].priceKrw,
-      goodsName: PLANS[plan].label,
-      returnUrl,
+      orderId,
+      amount,
+      goodsName,
+      returnUrl: `${returnUrl}&token=${encodeURIComponent(session.access_token)}`,
       fnError: (result) => alert("결제 오류: " + (result.resultMsg || "알 수 없는 오류")),
     });
   };
@@ -50,7 +65,12 @@ export default function PricingPage() {
     setBusy(true);
     try {
       if (NICEPAY_CLIENT_KEY) {
-        await payWithNicePay(selected);
+        await payWithNicePay(
+          `sub_${selected}_${Date.now()}`,
+          PLANS[selected].priceKrw,
+          PLANS[selected].label,
+          `${location.origin}/api/nicepay/auth?plan=${selected}`,
+        );
       } else {
         await activateMockSubscription("activate", selected);
         router.push("/app");
@@ -59,6 +79,33 @@ export default function PricingPage() {
       alert(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const buyCredits = async (pack: CreditPackId) => {
+    setCreditBusy(pack);
+    try {
+      if (NICEPAY_CLIENT_KEY) {
+        const orderId = `credits_${pack}_${crypto.randomUUID()}`;
+        await payWithNicePay(
+          orderId,
+          CREDIT_PACKS[pack].priceKrw,
+          `크레딧 ${CREDIT_PACKS[pack].label}`,
+          `${location.origin}/api/nicepay/auth?kind=credits&pack=${pack}`,
+        );
+      } else {
+        const res = await fetch("/api/billing/mock", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "buyCredits", pack }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? "구매에 실패했습니다.");
+        setCreditBalance((b) => (b ?? 0) + CREDIT_PACKS[pack].credits);
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreditBusy(null);
     }
   };
 
@@ -77,6 +124,10 @@ export default function PricingPage() {
         <ThemeToggle className="shrink-0 rounded-full border border-gray-200 px-2.5 py-1.5 text-sm transition hover:border-fuchsia-400 dark:border-gray-800" />
       </header>
 
+      <div className="mb-6 inline-flex items-center gap-1.5 rounded-full bg-fuchsia-100 px-3 py-1.5 text-xs font-semibold text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300">
+        🎉 {PROMO_LABEL}
+      </div>
+
       {status === "active" ? (
         <div className="studio-panel">
           <p className="text-sm">
@@ -85,6 +136,38 @@ export default function PricingPage() {
           <Link href="/app" className="mt-3 inline-block text-sm text-fuchsia-600 hover:underline dark:text-fuchsia-400">
             프로젝트 목록으로 가기 →
           </Link>
+
+          <div className="mt-6 border-t border-gray-100 pt-5 dark:border-gray-900">
+            <h2 className="text-sm font-bold">크레딧 추가 구매</h2>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              월 포함 AI 사용량을 다 썼을 때, 다음 달까지 기다리지 않고 바로 이어서 쓸 수 있습니다. 구매한 크레딧은 이월되며
+              한 번 사용에 1크레딧이 듭니다.
+              {creditBalance !== null && (
+                <>
+                  {" "}
+                  현재 보유: <span className="font-semibold text-fuchsia-600 dark:text-fuchsia-400">{creditBalance.toLocaleString("ko-KR")}개</span>
+                </>
+              )}
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {Object.values(CREDIT_PACKS).map((pack) => (
+                <div key={pack.id} className="rounded-md border border-gray-200 p-3 text-center dark:border-gray-800">
+                  <p className="text-sm font-semibold">{pack.label}</p>
+                  <p className="mt-1 text-xs text-gray-400 line-through">{pack.listPriceKrw.toLocaleString("ko-KR")}원</p>
+                  <p className="studio-serif text-lg font-bold text-fuchsia-600 dark:text-fuchsia-400">
+                    {pack.priceKrw.toLocaleString("ko-KR")}원
+                  </p>
+                  <button
+                    onClick={() => buyCredits(pack.id)}
+                    disabled={creditBusy !== null}
+                    className="mt-2 w-full rounded-md border border-fuchsia-300 px-2 py-1.5 text-xs font-medium text-fuchsia-700 transition hover:bg-fuchsia-50 disabled:opacity-40 dark:border-fuchsia-700 dark:text-fuchsia-300 dark:hover:bg-fuchsia-950/30"
+                  >
+                    {creditBusy === pack.id ? "처리 중…" : "구매"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       ) : (
         <>
@@ -105,6 +188,10 @@ export default function PricingPage() {
               ))}
             </div>
 
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-base text-gray-400 line-through">{PLANS[selected].listPriceKrw.toLocaleString("ko-KR")}원</span>
+              <span className="rounded bg-fuchsia-600 px-1.5 py-0.5 text-xs font-bold text-white">{PROMO_PERCENT_OFF}% 할인</span>
+            </div>
             <div className="flex items-baseline gap-1.5">
               <span className="studio-serif text-4xl font-bold">{PLANS[selected].priceKrw.toLocaleString("ko-KR")}원</span>
               <span className="text-sm text-gray-400">{PLANS[selected].periodLabel}</span>

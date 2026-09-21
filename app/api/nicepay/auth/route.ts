@@ -9,7 +9,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PLANS, type PlanId } from "@/lib/pricing";
+import { CREDIT_PACKS, PLANS, type CreditPackId, type PlanId } from "@/lib/pricing";
 
 function nicepayApiBase(): string {
   return process.env.NICEPAY_MODE === "production" ? "https://api.nicepay.co.kr" : "https://sandbox-api.nicepay.co.kr";
@@ -57,7 +57,9 @@ function redirectHtml(url: string): string {
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
+  const kind = url.searchParams.get("kind") === "credits" ? "credits" : "plan";
   const planParam = url.searchParams.get("plan") ?? "";
+  const packParam = url.searchParams.get("pack") ?? "";
 
   const form = await request.formData();
   const authResultCode = String(form.get("authResultCode") ?? "");
@@ -81,9 +83,17 @@ export async function POST(request: Request) {
     if (signature !== expectedSig) return fail("SIG_ERR", "결제 서명 검증에 실패했습니다.");
   }
 
-  if (planParam !== "monthly" && planParam !== "yearly") return fail("PLAN_ERR", "요금제 정보가 올바르지 않습니다.");
-  const plan = planParam as PlanId;
   if (!token) return fail("AUTH_ERR", "로그인 정보가 없습니다.");
+
+  // 결제 금액은 클라이언트 폼 값이 아니라 서버가 lib/pricing.ts 기준으로 계산한 값을 신뢰한다.
+  let amount: number;
+  if (kind === "credits") {
+    if (!(packParam in CREDIT_PACKS)) return fail("PACK_ERR", "크레딧 상품 정보가 올바르지 않습니다.");
+    amount = CREDIT_PACKS[packParam as CreditPackId].priceKrw;
+  } else {
+    if (planParam !== "monthly" && planParam !== "yearly") return fail("PLAN_ERR", "요금제 정보가 올바르지 않습니다.");
+    amount = PLANS[planParam as PlanId].priceKrw;
+  }
 
   const anonClient = createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "");
   const {
@@ -91,15 +101,29 @@ export async function POST(request: Request) {
   } = await anonClient.auth.getUser(token);
   if (!user) return fail("TOKEN_ERR", "로그인 정보가 만료되었습니다. 다시 로그인해 주세요.");
 
-  // 결제 금액은 클라이언트 폼 값이 아니라 서버가 요금제 기준으로 계산한 값을 신뢰한다.
-  const amount = PLANS[plan].priceKrw;
+  const admin = createAdminClient();
+
+  // 크레딧은 구독자 전용 추가 상품이다 — 구독 여부는 클라이언트가 아니라 서버가 직접 확인한다.
+  if (kind === "credits") {
+    const { data: sub } = await admin.from("subscriptions").select("status").eq("user_id", user.id).maybeSingle();
+    if (sub?.status !== "active") return fail("SUB_ERR", "크레딧은 구독자만 구매할 수 있습니다.");
+  }
 
   const confirm = await nicepayConfirm(tid, amount);
   if (confirm.resultCode !== "0000") return fail(confirm.resultCode ?? "CONFIRM_ERR", confirm.resultMsg ?? "승인에 실패했습니다.");
   if (confirm.amount !== amount) return fail("AMOUNT_ERR", "결제 금액이 일치하지 않습니다.");
 
+  if (kind === "credits") {
+    const pack = CREDIT_PACKS[packParam as CreditPackId];
+    const { error } = await admin.rpc("add_credits", { p_user_id: user.id, p_amount: pack.credits });
+    if (error) return fail("DB_ERR", "크레딧 반영 중 오류가 발생했습니다.");
+    return new NextResponse(redirectHtml("/nicepay/success?returnPath=/pricing"), {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+
+  const plan = planParam as PlanId;
   const periodDays = plan === "yearly" ? 365 : 30;
-  const admin = createAdminClient();
   const { error } = await admin.from("subscriptions").upsert({
     user_id: user.id,
     status: "active",

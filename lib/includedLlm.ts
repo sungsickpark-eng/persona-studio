@@ -35,7 +35,13 @@ export async function withIncludedUsage(llm: LLMSettings | undefined): Promise<L
   const { data, error } = await admin.rpc("increment_llm_usage", { p_user_id: user.id, p_month: month, p_cap: MONTHLY_CALL_CAP });
   if (error) throw new Error("포함 AI 사용량 확인 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.");
   if (!data?.[0]?.allowed) {
-    throw new Error(`이번 달 포함 AI 사용량(${MONTHLY_CALL_CAP}회)을 다 쓰셨습니다. 설정에서 본인 API 키를 연결하면 계속 쓸 수 있습니다.`);
+    // 월 무료 상한을 넘었어도, 구매해둔 크레딧(lib/pricing.ts의 CREDIT_PACKS)이 남아있으면 거기서 1개를 대신 차감한다.
+    const { data: consumed, error: creditError } = await admin.rpc("consume_credit", { p_user_id: user.id });
+    if (creditError || !consumed) {
+      throw new Error(
+        `이번 달 포함 AI 사용량(${MONTHLY_CALL_CAP}회)을 다 쓰셨습니다. 설정 또는 구독 페이지에서 크레딧을 추가 구매하거나 본인 API 키를 연결하면 계속 쓸 수 있습니다.`,
+      );
+    }
   }
 
   if (settings.includedProvider === "gemini") {

@@ -931,6 +931,46 @@ function SettingsPanel({
                       </button>
                     ))}
                   </div>
+
+                  {group.title === "구독형 AI" && draft.provider === "included" && (
+                    <div className="mt-2 border-t border-gray-100 pt-3 dark:border-gray-900">
+                      {isPaid ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-500">
+                            API 키 없이 구독에 포함된 기본 AI를 월 {MONTHLY_CALL_CAP}회까지 바로 씁니다(두 모델 합산). 다 쓰면
+                            안내와 함께 멈추니, 그 뒤엔 다른 탭에서 본인 API 키를 연결하면 계속 쓸 수 있습니다.
+                          </p>
+                          <div>
+                            <FieldLabel>포함 AI 모델</FieldLabel>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {([["openai", "ChatGPT (GPT-4o-mini)"], ["gemini", "Gemini (Flash)"]] as const).map(
+                                ([value, label]) => (
+                                  <button
+                                    key={value}
+                                    onClick={() => set("includedProvider", value)}
+                                    className={`rounded border px-2.5 py-1.5 text-left transition ${
+                                      draft.includedProvider === value
+                                        ? "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-500 dark:bg-fuchsia-950/30 dark:text-fuchsia-300"
+                                        : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
+                                    }`}
+                                  >
+                                    {label}
+                                  </button>
+                                ),
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="rounded border border-fuchsia-300 bg-fuchsia-50 px-3 py-2 text-xs text-fuchsia-700 dark:border-fuchsia-700 dark:bg-fuchsia-950/30 dark:text-fuchsia-300">
+                          구독자 전용입니다. 키 발급 없이 바로 쓰고 싶다면{" "}
+                          <Link href="/pricing" className="underline">
+                            구독하기 →
+                          </Link>
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -942,44 +982,6 @@ function SettingsPanel({
               본인 책임이며, 이 앱과 개발자는 그 비용에 대해 어떠한 책임도 지지 않습니다. 사용 전 해당 서비스의 요금제·한도를
               직접 확인하세요.
             </p>
-          )}
-
-          {draft.provider === "included" && (
-            <div className="border-t border-gray-100 pt-4 dark:border-gray-900">
-              {isPaid ? (
-                <div className="space-y-3">
-                  <p className="text-xs text-gray-500">
-                    API 키 없이 구독에 포함된 기본 AI를 월 {MONTHLY_CALL_CAP}회까지 바로 씁니다(두 모델 합산). 다 쓰면 안내와 함께
-                    멈추니, 그 뒤엔 다른 탭에서 본인 API 키를 연결하면 계속 쓸 수 있습니다.
-                  </p>
-                  <div>
-                    <FieldLabel>포함 AI 모델</FieldLabel>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {([["openai", "ChatGPT (GPT-4o-mini)"], ["gemini", "Gemini (Flash)"]] as const).map(([value, label]) => (
-                        <button
-                          key={value}
-                          onClick={() => set("includedProvider", value)}
-                          className={`rounded border px-2.5 py-1.5 text-left transition ${
-                            draft.includedProvider === value
-                              ? "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-500 dark:bg-fuchsia-950/30 dark:text-fuchsia-300"
-                              : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="rounded border border-fuchsia-300 bg-fuchsia-50 px-3 py-2 text-xs text-fuchsia-700 dark:border-fuchsia-700 dark:bg-fuchsia-950/30 dark:text-fuchsia-300">
-                  구독자 전용입니다. 키 발급 없이 바로 쓰고 싶다면{" "}
-                  <Link href="/pricing" className="underline">
-                    구독하기 →
-                  </Link>
-                </p>
-              )}
-            </div>
           )}
 
           {draft.provider === "ollama" && (
